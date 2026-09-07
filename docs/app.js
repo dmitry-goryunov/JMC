@@ -5,6 +5,7 @@
   'use strict';
 
   var STORE = 'jmc.progress.v1';
+  var BOARD_STORE = 'jmc.board.v1';
   var PAPER_MINUTES = 60;   // the real Junior Mathematical Challenge allowance
   var PAPER_MARKS = 135;    // 15 questions at 5 marks, 10 at 6
   var app = document.getElementById('app');
@@ -24,8 +25,10 @@
 
   var data = null;      // { papers: { "2026": { year, questions: [...] } } }
   var progress = load();
+  var boards = loadBoards();   // rough working, keyed like attempts
   var session = null;   // active run
   var timer = null;
+  var boardWatch = null;
 
   /* ---------- storage ---------- */
 
@@ -62,12 +65,44 @@
   }
 
   function forgetYear(year) {
-    [progress.attempts, progress.results].forEach(function (store) {
+    [progress.attempts, progress.results, boards].forEach(function (store) {
       Object.keys(store).forEach(function (k) {
         if (k.indexOf(year + ':') === 0) delete store[k];
       });
     });
     save();
+    saveBoards();
+  }
+
+  /* ---------- whiteboard storage ----------
+     Working is kept per question as normalised stroke paths rather than as an
+     image, which is small enough to live in local storage and redraws cleanly
+     at any width. */
+
+  function loadBoards() {
+    try { return JSON.parse(localStorage.getItem(BOARD_STORE) || '{}'); }
+    catch (e) { return {}; }
+  }
+
+  function saveBoards() {
+    for (var attempt = 0; attempt < 8; attempt++) {
+      try {
+        localStorage.setItem(BOARD_STORE, JSON.stringify(boards));
+        return;
+      } catch (e) {
+        if (!dropOldestBoard()) return;   // out of room and nothing left to drop
+      }
+    }
+  }
+
+  function dropOldestBoard() {
+    var oldest = null;
+    Object.keys(boards).forEach(function (k) {
+      if (!oldest || (boards[k].at || 0) < (boards[oldest].at || 0)) oldest = k;
+    });
+    if (!oldest) return false;
+    delete boards[oldest];
+    return true;
   }
 
   /* ---------- helpers ---------- */
@@ -184,7 +219,9 @@
     app.querySelector('#reset').addEventListener('click', function () {
       if (!confirm('Erase all recorded answers on this device?')) return;
       progress = { attempts: {}, results: {}, streak: 0, best: 0 };
+      boards = {};
       save();
+      saveBoards();
       showHome();
     });
   }
@@ -500,6 +537,7 @@
     }
 
     buildNav();
+    setupBoard(item);
   }
 
   function showVerdict(item, picked) {
@@ -541,16 +579,130 @@
   function choose(letter) {
     if (session.marked) return;
     session.answers[session.index] = letter;
-    // No verdict yet - just show the choice, then move on.
+    // No verdict, and no jumping ahead - the reader moves on with Next.
     app.querySelectorAll('.choices button').forEach(function (b) {
       b.classList.toggle('picked', b.dataset.choice === letter);
     });
-    var at = session.index;
-    setTimeout(function () {
-      if (!session || session.marked || session.index !== at) return;
-      if (at < session.items.length - 1) goTo(at + 1); else renderQuestion();
-    }, 220);
+    var dot = app.querySelectorAll('.navstrip button')[session.index];
+    if (dot) dot.classList.add('done');
+    var markBtn = app.querySelector('[data-act="mark"]');
+    var n = answeredCount();
+    markBtn.textContent = 'Mark ' + n + ' answered';
+    markBtn.disabled = false;
   }
+
+  /* ---------- whiteboard ---------- */
+
+  function setupBoard(item) {
+    var wrap = app.querySelector('.board');
+    var surface = wrap.querySelector('.board-surface');
+    var canvas = wrap.querySelector('canvas');
+    var ctx = canvas.getContext('2d');
+    var k = key(item.year, item.q.n);
+    var strokes = (boards[k] && boards[k].s) ? boards[k].s.slice() : [];
+    var erasing = false;
+    var live = null;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    function paint() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      strokes.forEach(function (st) { drawStroke(st); });
+      if (live) drawStroke(live);
+    }
+
+    function drawStroke(st) {
+      var w = canvas.width;
+      ctx.globalCompositeOperation = st.e ? 'destination-out' : 'source-over';
+      ctx.strokeStyle = '#191b20';
+      ctx.lineWidth = Math.max(1, st.w * w);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      st.p.forEach(function (pt, i) {
+        var x = pt[0] * w, y = pt[1] * w;
+        if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      });
+      if (st.p.length === 1) ctx.lineTo(st.p[0][0] * w + 0.1, st.p[0][1] * w);
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function resize() {
+      var r = surface.getBoundingClientRect();
+      if (!r.width) return;
+      canvas.width = Math.round(r.width * dpr);
+      canvas.height = Math.round(r.height * dpr);
+      paint();
+    }
+
+    function store() {
+      if (strokes.length) boards[k] = { at: Date.now(), s: strokes };
+      else delete boards[k];
+      saveBoards();
+    }
+
+    function at(e) {
+      var r = canvas.getBoundingClientRect();
+      return [(e.clientX - r.left) * dpr / canvas.width,
+              (e.clientY - r.top) * dpr / canvas.width];
+    }
+
+    canvas.addEventListener('pointerdown', function (e) {
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* no capture */ }
+      live = { e: erasing ? 1 : 0, w: (erasing ? 16 : 2.4) * dpr / canvas.width, p: [at(e)] };
+      paint();
+    });
+
+    canvas.addEventListener('pointermove', function (e) {
+      if (!live) return;
+      var pt = at(e), last = live.p[live.p.length - 1];
+      var min = 1.5 * dpr / canvas.width;
+      if (Math.abs(pt[0] - last[0]) < min && Math.abs(pt[1] - last[1]) < min) return;
+      live.p.push([round(pt[0]), round(pt[1])]);
+      paint();
+    });
+
+    function finish() {
+      if (!live) return;
+      strokes.push(live);
+      live = null;
+      paint();
+      store();
+    }
+    canvas.addEventListener('pointerup', finish);
+    canvas.addEventListener('pointercancel', finish);
+    canvas.addEventListener('pointerleave', finish);
+
+    wrap.querySelectorAll('.board-tools button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var tool = b.dataset.tool;
+        if (tool === 'undo') {
+          strokes.pop(); paint(); store(); return;
+        }
+        if (tool === 'clear') {
+          if (strokes.length && !confirm('Wipe the working for this question?')) return;
+          strokes = []; paint(); store(); return;
+        }
+        erasing = tool === 'eraser';
+        wrap.querySelectorAll('[data-tool="pen"], [data-tool="eraser"]').forEach(function (t) {
+          t.classList.toggle('on', t === b);
+        });
+      });
+    });
+
+    // Watch the box rather than the window, so a rotation, a resized pane or
+    // an on-screen keyboard all keep the backing store in step.
+    if (boardWatch) boardWatch.disconnect();
+    if (window.ResizeObserver) {
+      boardWatch = new ResizeObserver(resize);
+      boardWatch.observe(surface);
+    } else {
+      window.addEventListener('resize', resize);
+    }
+    resize();
+  }
+
+  function round(v) { return Math.round(v * 10000) / 10000; }
 
   function revealSolution(item) {
     if (!item.q.s) {

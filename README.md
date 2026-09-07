@@ -40,6 +40,9 @@ scheme: 5 for each of Q1–15, 6 for each of Q16–25, no penalty for a wrong an
 - **Practise mistakes** — replays the questions you have previously got wrong.
 - A strip of question numbers shows at a glance what is answered, and after marking, what
   was right. Every original PDF is one tap away from the paper list.
+- **Rough working** — a squared whiteboard fills the page below each question. Draw with a
+  finger or a stylus; pen, eraser, undo and clear. Working is kept per question, so it is
+  still there when you come back to it, and it survives closing the app.
 
 Progress lives in the browser's local storage on the device. Nothing is uploaded, and
 there is no account or tracking.
