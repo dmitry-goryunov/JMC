@@ -7,6 +7,8 @@
   var STORE = 'jmc.progress.v1';
   var BOARD_STORE = 'jmc.board.v1';
   var DRAFT_STORE = 'jmc.draft.v1';
+  // Bumped on every publish, so the running app can say which build it is.
+  var BUILD = '2026-09-07b';
   var PAPER_MINUTES = 60;   // the real Junior Mathematical Challenge allowance
   var PAPER_MARKS = 135;    // 15 questions at 5 marks, 10 at 6
   var app = document.getElementById('app');
@@ -296,6 +298,11 @@
     years().forEach(function (y) { list.appendChild(paperRow(data.papers[y])); });
 
     app.querySelector('#precache').addEventListener('click', precacheAll);
+
+    var papers = years().length;
+    var qs = allQuestions().length;
+    app.querySelector('#build').textContent =
+      'Build ' + BUILD + ' · ' + papers + ' papers · ' + qs + ' questions';
 
     app.querySelector('#reset').addEventListener('click', function () {
       if (!confirm('Erase all recorded answers on this device?')) return;
