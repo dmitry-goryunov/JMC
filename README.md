@@ -34,6 +34,11 @@ answer, the question you were on, and the time left on the clock, which pauses w
 away. The card shows how far you got and the button turns into **Resume**. Even a randomly
 drawn mix comes back as the same ten questions.
 
+**Continue** picks up a half you marked part way through, and brings those earlier answers
+back with it, so you can see what you already did and change your mind before marking again.
+A question you leave alone is not counted twice. **Redo**, on a half that is complete, starts
+clean instead.
+
 - **Past papers** — each paper splits into **First 15** (Q1–15) and **Last 10** (Q16–25),
   each timed, marked and tracked on its own, so the harder half can be drilled separately.
   Once a half has been marked its card shows the score, how long it took and the date;

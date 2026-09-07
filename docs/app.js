@@ -104,6 +104,7 @@
       drafts[k] = {
         ids: session.items.map(function (i) { return i.year + ':' + i.q.n; }),
         answers: session.answers,
+        touched: session.touched,
         index: session.index,
         left: Math.max(0, session.deadline - Date.now()),
         spent: Date.now() - session.startedAt,
@@ -473,9 +474,16 @@
 
   function startPaper(year, seg, mock) {
     var items = questionsIn(year, seg);
-    var start = 0;
-    if (!mock) {
-      while (start < items.length && progress.attempts[key(year, items[start].q.n)]) start++;
+    var answers = {}, start = 0;
+    if (!mock && answeredIn(year, seg) < seg.count) {
+      // Continuing a part-finished half brings the earlier answers back with it,
+      // so you can see what you already did. A finished half starts clean - that
+      // is a redo, not a continuation.
+      items.forEach(function (item, i) {
+        var a = progress.attempts[key(year, item.q.n)];
+        if (a && a.last) answers[i] = a.last;
+      });
+      while (start < items.length && answers[start]) start++;
       if (start >= items.length) start = 0;
     }
     begin({
@@ -484,6 +492,7 @@
       year: year,
       seg: seg,
       items: items,
+      answers: answers,
       index: start
     });
   }
@@ -513,6 +522,7 @@
     session.draftKey = draftKeyFor(cfg);
     session.index = cfg.index || 0;
     session.answers = cfg.answers || {};
+    session.touched = {};
     session.marked = !!cfg.marked;
     session.startedAt = Date.now();
     session.deadline = session.marked
@@ -522,6 +532,7 @@
     var draft = session.marked ? null : drafts[session.draftKey];
     if (draft) {
       session.answers = draft.answers;
+      session.touched = draft.touched || {};
       session.index = Math.min(draft.index || 0, session.items.length - 1);
       session.startedAt = Date.now() - (draft.spent || 0);
       session.deadline = Date.now() + (draft.left || 0);
@@ -667,6 +678,7 @@
   function choose(letter) {
     if (session.marked) return;
     session.answers[session.index] = letter;
+    session.touched[session.index] = 1;
     // No verdict, and no jumping ahead - the reader moves on with Next.
     app.querySelectorAll('.choices button').forEach(function (b) {
       b.classList.toggle('picked', b.dataset.choice === letter);
@@ -830,7 +842,13 @@
     session.takenSecs = Math.round((Date.now() - session.startedAt) / 1000);
     session.items.forEach(function (item, i) {
       var picked = session.answers[i];
-      if (picked) record(item.year, item.q.n, picked, picked === item.q.answer);
+      if (!picked) return;
+      var prior = progress.attempts[key(item.year, item.q.n)];
+      // An answer carried in from an earlier sitting and left alone is already
+      // on the record; re-recording it would count the question twice.
+      if (session.touched[i] || !prior || prior.last !== picked) {
+        record(item.year, item.q.n, picked, picked === item.q.answer);
+      }
     });
     var tally = score();
     if (session.year && session.seg) {
