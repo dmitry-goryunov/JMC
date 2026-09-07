@@ -158,7 +158,7 @@
 
     var go = document.createElement('button');
     go.className = 'go';
-    go.textContent = done ? 'Continue' : 'Practise';
+    go.textContent = done === 0 ? 'Practise' : done < 25 ? 'Continue' : 'Redo';
     go.addEventListener('click', function () { startPaper(paper.year, false); });
     acts.appendChild(go);
 
