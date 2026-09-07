@@ -45,8 +45,9 @@
     </div>
 
     <h2>Past papers</h2>
-    <p class="muted">Pick a paper to work through all 25 questions, or start it as a
-      timed 60&#8209;minute mock.</p>
+    <p class="muted">Each paper splits into the first 15 questions and the harder last 10,
+      tracked separately. Nothing is marked while you answer &mdash; tap <b>Mark</b> when
+      you are done and the whole set is graded at once.</p>
     <ul id="papers" class="papers"></ul>
 
     <h2>Offline</h2>
@@ -85,10 +86,14 @@
       <img class="simg" alt="Solution" decoding="async">
     </div>
     <div class="quiz-actions">
-      <button class="ghost" data-act="solution" hidden>Show solution</button>
-      <button class="primary" data-act="next" hidden>Next</button>
-      <button class="ghost" data-act="skip">Skip</button>
+      <button class="ghost" data-act="prev">&#8592; Previous</button>
+      <button class="ghost" data-act="next">Next &#8594;</button>
     </div>
+    <div class="quiz-actions">
+      <button class="ghost" data-act="solution" hidden>Show solution</button>
+      <button class="primary" data-act="mark">Mark</button>
+    </div>
+    <ol class="navstrip"></ol>
   </section>
 </template>
 

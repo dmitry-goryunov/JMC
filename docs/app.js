@@ -1,4 +1,6 @@
-/* JMC Practice - offline practice app for UKMT Junior Mathematical Challenge papers. */
+/* JMC Practice - offline practice app for UKMT Junior Mathematical Challenge papers.
+   Answers are collected without feedback and graded in one go, the way a real
+   paper works. */
 (function () {
   'use strict';
 
@@ -8,6 +10,16 @@
   var backBtn = document.getElementById('back');
   var titleEl = document.getElementById('title');
   var metaEl = document.getElementById('topmeta');
+
+  // The two halves of a paper are practised, and tracked, separately.
+  var SEGMENTS = {
+    first: { key: 'first', label: 'First 15', range: 'Q1–15', count: 15,
+             has: function (n) { return n <= 15; } },
+    last:  { key: 'last', label: 'Last 10', range: 'Q16–25', count: 10,
+             has: function (n) { return n >= 16; } },
+    all:   { key: 'all', label: 'All 25', range: 'Q1–25', count: 25,
+             has: function () { return true; } }
+  };
 
   var data = null;      // { papers: { "2026": { year, questions: [...] } } }
   var progress = load();
@@ -40,6 +52,12 @@
     progress.attempts[k] = a;
     progress.streak = correct ? (progress.streak || 0) + 1 : 0;
     progress.best = Math.max(progress.best || 0, progress.streak);
+  }
+
+  function forgetYear(year) {
+    Object.keys(progress.attempts).forEach(function (k) {
+      if (k.indexOf(year + ':') === 0) delete progress.attempts[k];
+    });
     save();
   }
 
@@ -51,14 +69,24 @@
     return Object.keys(data.papers).sort(function (a, b) { return b - a; });
   }
 
+  function questionsIn(year, seg) {
+    return data.papers[year].questions
+      .filter(function (q) { return seg.has(q.n); })
+      .map(function (q) { return { year: +year, q: q }; });
+  }
+
   function allQuestions() {
     var out = [];
     years().forEach(function (y) {
-      data.papers[y].questions.forEach(function (q) {
-        out.push({ year: +y, q: q });
-      });
+      out = out.concat(questionsIn(y, SEGMENTS.all));
     });
     return out;
+  }
+
+  function answeredIn(year, seg) {
+    return questionsIn(year, seg).filter(function (item) {
+      return progress.attempts[key(year, item.q.n)];
+    }).length;
   }
 
   function shuffle(list) {
@@ -120,9 +148,7 @@
     });
 
     var list = app.querySelector('#papers');
-    years().forEach(function (y) {
-      list.appendChild(paperRow(data.papers[y]));
-    });
+    years().forEach(function (y) { list.appendChild(paperRow(data.papers[y])); });
 
     app.querySelector('#precache').addEventListener('click', precacheAll);
 
@@ -137,36 +163,39 @@
   function paperRow(paper) {
     var li = document.createElement('li');
     li.className = 'paper';
-    var done = paper.questions.filter(function (q) {
-      return progress.attempts[key(paper.year, q.n)];
-    }).length;
+    var total = answeredIn(paper.year, SEGMENTS.all);
 
     var head = document.createElement('div');
     head.className = 'paper-head';
-    head.innerHTML = '<b>' + paper.year + '</b>' +
-      '<span class="muted small">25 questions</span>' +
-      '<span class="done">' + done + '/25</span>';
+    head.innerHTML = '<b>' + paper.year + '</b><span class="done">' + total + '/25 answered</span>';
     li.appendChild(head);
 
-    var bar = document.createElement('div');
-    bar.className = 'bar';
-    bar.innerHTML = '<i style="width:' + (done / 25 * 100) + '%"></i>';
-    li.appendChild(bar);
+    ['first', 'last'].forEach(function (name) {
+      var seg = SEGMENTS[name];
+      var done = answeredIn(paper.year, seg);
+      var row = document.createElement('div');
+      row.className = 'seg';
+      row.innerHTML =
+        '<span class="seg-label">' + seg.label + '<small>' + seg.range + '</small></span>' +
+        '<span class="bar"><i style="width:' + (done / seg.count * 100) + '%"></i></span>' +
+        '<span class="seg-count">' + done + '/' + seg.count + '</span>';
+
+      var go = document.createElement('button');
+      go.className = 'go';
+      go.textContent = done === 0 ? 'Start' : done < seg.count ? 'Continue' : 'Redo';
+      go.addEventListener('click', function () { startPaper(paper.year, seg, false); });
+      row.appendChild(go);
+      li.appendChild(row);
+    });
 
     var acts = document.createElement('div');
     acts.className = 'paper-actions';
 
-    var go = document.createElement('button');
-    go.className = 'go';
-    go.textContent = done === 0 ? 'Practise' : done < 25 ? 'Continue' : 'Redo';
-    go.addEventListener('click', function () { startPaper(paper.year, false); });
-    acts.appendChild(go);
-
     var mock = document.createElement('button');
     mock.textContent = 'Timed mock';
     mock.addEventListener('click', function () {
-      if (confirm('Start the ' + paper.year + ' paper as a timed 60-minute mock?\n\n' +
-                  'Answers are marked at the end.')) startPaper(paper.year, true);
+      if (confirm('Start the whole ' + paper.year + ' paper as a timed 60-minute mock?'))
+        startPaper(paper.year, SEGMENTS.all, true);
     });
     acts.appendChild(mock);
 
@@ -176,6 +205,17 @@
     pdf.target = '_blank';
     pdf.rel = 'noopener';
     acts.appendChild(pdf);
+
+    var reset = document.createElement('button');
+    reset.className = 'danger';
+    reset.textContent = 'Reset';
+    reset.disabled = total === 0;
+    reset.addEventListener('click', function () {
+      if (!confirm('Clear your answers for the ' + paper.year + ' paper?')) return;
+      forgetYear(paper.year);
+      showHome();
+    });
+    acts.appendChild(reset);
 
     li.appendChild(acts);
     return li;
@@ -238,27 +278,24 @@
     begin({
       title: mode === 'hard' ? 'Hard mix' : mode === 'weak' ? 'Mistakes' : 'Quick mix',
       mode: mode,
-      items: shuffle(pool.slice()).slice(0, 10),
-      instant: true
+      items: shuffle(pool.slice()).slice(0, 10)
     });
   }
 
-  function startPaper(year, mock) {
-    var items = data.papers[year].questions.map(function (q) {
-      return { year: year, q: q };
-    });
+  function startPaper(year, seg, mock) {
+    var items = questionsIn(year, seg);
     var start = 0;
     if (!mock) {
-      // resume at the first question not yet attempted
       while (start < items.length && progress.attempts[key(year, items[start].q.n)]) start++;
       if (start >= items.length) start = 0;
     }
     begin({
-      title: year + (mock ? ' mock' : ' paper'),
+      title: year + (mock ? ' mock' : ' · ' + seg.range),
       mode: mock ? 'mock' : 'paper',
+      year: year,
+      seg: seg,
       items: items,
       index: start,
-      instant: !mock,
       deadline: mock ? Date.now() + MOCK_MINUTES * 60000 : null
     });
   }
@@ -267,6 +304,7 @@
     session = cfg;
     session.index = cfg.index || 0;
     session.answers = {};
+    session.marked = false;
     backBtn.hidden = false;
     titleEl.textContent = cfg.title;
     if (session.deadline) tick();
@@ -276,97 +314,135 @@
   function tick() {
     stopTimer();
     timer = setInterval(function () {
-      var left = session && session.deadline ? session.deadline - Date.now() : 0;
-      if (!session || !session.deadline) { stopTimer(); return; }
-      if (left <= 0) { stopTimer(); finish(); return; }
+      if (!session || !session.deadline || session.marked) { stopTimer(); return; }
+      var left = session.deadline - Date.now();
+      if (left <= 0) { stopTimer(); mark(); return; }
       var m = Math.floor(left / 60000), s = Math.floor(left % 60000 / 1000);
       metaEl.innerHTML = '<span class="' + (left < 300000 ? 'warn' : '') + '">' +
         m + ':' + (s < 10 ? '0' : '') + s + '</span>';
     }, 250);
   }
 
+  function answeredCount() {
+    return Object.keys(session.answers).length;
+  }
+
   /* ---------- question screen ---------- */
 
   function renderQuestion() {
     var item = session.items[session.index];
-    if (!item) { finish(); return; }
+    if (!item) { showHome(); return; }
     view('tpl-quiz');
 
-    if (!session.deadline) {
+    if (!session.deadline || session.marked) {
       metaEl.textContent = (session.index + 1) + '/' + session.items.length;
     }
     app.querySelector('.progressbar i').style.width =
-      (session.index / session.items.length * 100) + '%';
+      ((session.index + 1) / session.items.length * 100) + '%';
 
     var img = app.querySelector('.qimg');
     img.src = item.q.q;
     img.width = item.q.qw;
     img.height = item.q.qh;
     img.alt = 'JMC ' + item.year + ' question ' + item.q.n;
+
     var wrap = app.querySelector('.qwrap');
     wrap.addEventListener('click', function () {
       var on = wrap.classList.toggle('zoom');
       // The crops are rendered at 200 dpi; half size puts body text at a
-      // comfortable reading size and leaves the page to scroll sideways.
+      // comfortable reading size and leaves the card to scroll sideways.
       img.style.width = on ? Math.round(item.q.qw / 2) + 'px' : '';
       if (on) wrap.scrollLeft = 0;
     });
 
-    var chosen = session.answers[session.index];
-    var buttons = Array.prototype.slice.call(app.querySelectorAll('.choices button'));
-    buttons.forEach(function (b) {
-      b.addEventListener('click', function () { choose(b.dataset.choice); });
+    var picked = session.answers[session.index];
+    app.querySelectorAll('.choices button').forEach(function (b) {
+      var letter = b.dataset.choice;
+      if (session.marked) {
+        b.disabled = true;
+        if (letter === item.q.answer) b.classList.add('right');
+        else if (letter === picked) b.classList.add('wrong');
+      } else {
+        if (letter === picked) b.classList.add('picked');
+        b.addEventListener('click', function () { choose(letter); });
+      }
     });
 
+    var prev = app.querySelector('[data-act="prev"]');
+    var next = app.querySelector('[data-act="next"]');
+    prev.disabled = session.index === 0;
+    next.disabled = session.index === session.items.length - 1;
+    prev.addEventListener('click', function () { goTo(session.index - 1); });
+    next.addEventListener('click', function () { goTo(session.index + 1); });
+
+    var markBtn = app.querySelector('[data-act="mark"]');
     var solBtn = app.querySelector('[data-act="solution"]');
-    var nextBtn = app.querySelector('[data-act="next"]');
-    var skipBtn = app.querySelector('[data-act="skip"]');
+    if (session.marked) {
+      markBtn.textContent = 'Back to results';
+      markBtn.addEventListener('click', showResults);
+      solBtn.hidden = false;
+      if (!item.q.s) solBtn.textContent = 'Open solutions PDF';
+      solBtn.addEventListener('click', function () { revealSolution(item); });
+      showVerdict(item, picked);
+    } else {
+      var n = answeredCount();
+      markBtn.textContent = n ? 'Mark ' + n + ' answered' : 'Mark';
+      markBtn.disabled = n === 0;
+      markBtn.addEventListener('click', confirmMark);
+      solBtn.hidden = true;
+    }
 
-    nextBtn.textContent = session.index === session.items.length - 1 ? 'Finish' : 'Next';
-    nextBtn.addEventListener('click', advance);
-    skipBtn.addEventListener('click', advance);
-    solBtn.addEventListener('click', function () { revealSolution(item); });
+    buildNav();
+  }
 
-    if (chosen) paint(item, chosen);
+  function showVerdict(item, picked) {
+    var v = app.querySelector('.verdict');
+    var ok = picked === item.q.answer;
+    v.hidden = false;
+    v.className = 'verdict ' + (picked ? (ok ? 'ok' : 'bad') : 'skip');
+    v.innerHTML = (!picked ? 'Not answered — the answer is ' + item.q.answer
+                  : ok ? 'Correct' : 'Not quite — the answer is ' + item.q.answer) +
+      '<small>' + item.year + ' Q' + item.q.n + ' · ' + marksFor(item.q.n) + ' marks</small>';
+  }
+
+  function buildNav() {
+    var nav = app.querySelector('.navstrip');
+    session.items.forEach(function (item, i) {
+      var li = document.createElement('li');
+      var b = document.createElement('button');
+      b.textContent = item.q.n;
+      b.title = item.year + ' Q' + item.q.n;
+      if (i === session.index) b.classList.add('current');
+      if (session.marked) {
+        var picked = session.answers[i];
+        if (picked) b.classList.add(picked === item.q.answer ? 'right' : 'wrong');
+      } else if (session.answers[i]) {
+        b.classList.add('done');
+      }
+      b.addEventListener('click', function () { goTo(i); });
+      li.appendChild(b);
+      nav.appendChild(li);
+    });
+  }
+
+  function goTo(i) {
+    if (i < 0 || i >= session.items.length) return;
+    session.index = i;
+    renderQuestion();
   }
 
   function choose(letter) {
-    var item = session.items[session.index];
-    if (session.answers[session.index]) return;
+    if (session.marked) return;
     session.answers[session.index] = letter;
-    if (session.instant) {
-      record(item.year, item.q.n, letter, letter === item.q.answer);
-    }
-    paint(item, letter);
-  }
-
-  function paint(item, letter) {
-    var correct = item.q.answer;
-    var buttons = app.querySelectorAll('.choices button');
-    buttons.forEach(function (b) {
-      b.disabled = true;
-      if (!session.instant) {
-        if (b.dataset.choice === letter) b.classList.add('picked');
-        return;
-      }
-      if (b.dataset.choice === correct) b.classList.add('right');
-      else if (b.dataset.choice === letter) b.classList.add('wrong');
+    // No verdict yet - just show the choice, then move on.
+    app.querySelectorAll('.choices button').forEach(function (b) {
+      b.classList.toggle('picked', b.dataset.choice === letter);
     });
-
-    app.querySelector('[data-act="next"]').hidden = false;
-    app.querySelector('[data-act="skip"]').hidden = true;
-
-    if (!session.instant) return;
-
-    var v = app.querySelector('.verdict');
-    var ok = letter === correct;
-    v.hidden = false;
-    v.className = 'verdict ' + (ok ? 'ok' : 'bad');
-    v.innerHTML = (ok ? 'Correct' : 'Not quite — the answer is ' + correct) +
-      '<small>' + item.year + ' Q' + item.q.n + ' · ' + marksFor(item.q.n) + ' marks</small>';
-    var solBtn = app.querySelector('[data-act="solution"]');
-    solBtn.hidden = false;
-    if (!item.q.s) solBtn.textContent = 'Open solutions PDF';
+    var at = session.index;
+    setTimeout(function () {
+      if (!session || session.marked || session.index !== at) return;
+      if (at < session.items.length - 1) goTo(at + 1); else renderQuestion();
+    }, 220);
   }
 
   function revealSolution(item) {
@@ -390,33 +466,45 @@
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  function advance() {
-    session.index++;
-    if (session.index >= session.items.length) finish();
-    else renderQuestion();
+  /* ---------- marking ---------- */
+
+  function confirmMark() {
+    var left = session.items.length - answeredCount();
+    if (left && !confirm(left + ' question' + (left === 1 ? ' is' : 's are') +
+                         ' still unanswered. Mark now anyway?')) return;
+    mark();
   }
 
-  /* ---------- results ---------- */
+  function mark() {
+    stopTimer();
+    session.marked = true;
+    session.items.forEach(function (item, i) {
+      var picked = session.answers[i];
+      if (picked) record(item.year, item.q.n, picked, picked === item.q.answer);
+    });
+    save();
+    showResults();
+  }
 
-  function finish() {
+  function showResults() {
     stopTimer();
     metaEl.textContent = '';
     titleEl.textContent = 'Results';
 
-    var marks = 0, possible = 0, right = 0;
+    var marks = 0, possible = 0, right = 0, answered = 0;
     session.items.forEach(function (item, i) {
       var picked = session.answers[i];
-      var ok = picked === item.q.answer;
       possible += marksFor(item.q.n);
-      if (!session.instant && picked) record(item.year, item.q.n, picked, ok);
-      if (ok) { marks += marksFor(item.q.n); right++; }
+      if (picked) answered++;
+      if (picked === item.q.answer) { marks += marksFor(item.q.n); right++; }
     });
 
     view('tpl-results');
     app.querySelector('[data-res="marks"]').textContent = marks;
     app.querySelector('[data-res="outof"]').textContent = ' / ' + possible + ' marks';
     app.querySelector('[data-res="line"]').textContent =
-      right + ' of ' + session.items.length + ' correct';
+      right + ' of ' + session.items.length + ' correct' +
+      (answered < session.items.length ? ' · ' + (session.items.length - answered) + ' left blank' : '');
 
     var grid = app.querySelector('[data-res="grid"]');
     session.items.forEach(function (item, i) {
@@ -426,27 +514,18 @@
       b.textContent = item.q.n;
       b.title = item.year + ' Q' + item.q.n;
       if (picked) b.className = picked === item.q.answer ? 'right' : 'wrong';
-      b.addEventListener('click', function () {
-        session.index = i;
-        session.instant = true;
-        titleEl.textContent = session.title;
-        renderQuestion();
-      });
+      b.addEventListener('click', function () { goTo(i); });
       li.appendChild(b);
       grid.appendChild(li);
     });
 
-    var finished = session;
-    app.querySelector('[data-act="review"]').addEventListener('click', function () {
-      finished.index = 0;
-      finished.instant = true;
-      session = finished;
-      titleEl.textContent = finished.title;
-      renderQuestion();
-    });
-    app.querySelector('[data-act="again"]').addEventListener('click', function () {
-      if (finished.mode === 'paper' || finished.mode === 'mock') showHome();
-      else startMode(finished.mode);
+    app.querySelector('[data-act="review"]').addEventListener('click', function () { goTo(0); });
+    var again = app.querySelector('[data-act="again"]');
+    again.textContent = session.mode === 'paper' || session.mode === 'mock'
+      ? 'Back to papers' : 'Try another set';
+    again.addEventListener('click', function () {
+      if (session.mode === 'paper' || session.mode === 'mock') showHome();
+      else startMode(session.mode);
     });
     app.querySelector('[data-act="home"]').addEventListener('click', showHome);
   }
@@ -454,8 +533,8 @@
   /* ---------- boot ---------- */
 
   backBtn.addEventListener('click', function () {
-    if (session && session.deadline && Date.now() < session.deadline &&
-        !confirm('Leave the mock? Your timer will be lost.')) return;
+    if (session && !session.marked && answeredCount() &&
+        !confirm('Leave without marking? Your answers will be lost.')) return;
     showHome();
   });
 

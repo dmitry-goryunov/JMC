@@ -20,14 +20,21 @@ on a laptop, or on an interactive whiteboard.
 
 ## What it does
 
+Nothing is marked while you answer. You work through a set, changing answers and jumping
+about as you like, then tap **Mark** and the whole chunk is graded at once — the way a real
+paper works. Only then do the verdicts and worked solutions appear.
+
+- **Past papers** — each paper splits into **First 15** (Q1–15) and **Last 10** (Q16–25),
+  each with its own progress, so the harder half can be drilled on its own. Each year also
+  has its own **Reset**.
+- **Timed mock** — the full 25-question paper against a 60-minute clock, marked when the
+  time runs out or when you tap Mark, under the current scheme (5 marks for Q1–15, 6 for
+  Q16–25, no penalty for a wrong answer).
 - **Quick mix** — 10 random questions from any year.
 - **Hard mix** — 10 random questions drawn only from Q16–25.
 - **Practise mistakes** — replays the questions you have previously got wrong.
-- **Past papers** — work through any paper question by question, with the answer and
-  worked solution revealed as you go. Progress is remembered per question.
-- **Timed mock** — a full 25-question paper against a 60-minute clock, marked at the end
-  under the current scheme (5 marks for Q1–15, 6 for Q16–25, no penalty for a wrong answer).
-- Every original PDF is one tap away from the paper list.
+- A strip of question numbers shows at a glance what is answered, and after marking, what
+  was right. Every original PDF is one tap away from the paper list.
 
 Progress lives in the browser's local storage on the device. Nothing is uploaded, and
 there is no account or tracking.
