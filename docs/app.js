@@ -31,6 +31,7 @@
   var session = null;   // active run
   var timer = null;
   var boardWatch = null;
+  var inkResize = null;
 
   /* ---------- storage ---------- */
 
@@ -105,6 +106,7 @@
         ids: session.items.map(function (i) { return i.year + ':' + i.q.n; }),
         answers: session.answers,
         touched: session.touched,
+        checked: session.checked,
         index: session.index,
         left: Math.max(0, session.deadline - Date.now()),
         spent: Date.now() - session.startedAt,
@@ -523,6 +525,7 @@
     session.index = cfg.index || 0;
     session.answers = cfg.answers || {};
     session.touched = {};
+    session.checked = {};   // questions marked one at a time, in place
     session.marked = !!cfg.marked;
     session.startedAt = Date.now();
     session.deadline = session.marked
@@ -533,6 +536,7 @@
     if (draft) {
       session.answers = draft.answers;
       session.touched = draft.touched || {};
+      session.checked = draft.checked || {};
       session.index = Math.min(draft.index || 0, session.items.length - 1);
       session.startedAt = Date.now() - (draft.spent || 0);
       session.deadline = Date.now() + (draft.left || 0);
@@ -587,20 +591,39 @@
     img.width = item.q.qw;
     img.height = item.q.qh;
     img.alt = 'JMC ' + item.year + ' question ' + item.q.n;
+    img.addEventListener('load', function () { if (inkResize) inkResize(); });
 
     var wrap = app.querySelector('.qwrap');
-    wrap.addEventListener('click', function () {
-      var on = wrap.classList.toggle('zoom');
+    var stage = app.querySelector('.qstage');
+    var zoomBtn = app.querySelector('[data-q="zoom"]');
+    var annotateBtn = app.querySelector('[data-q="annotate"]');
+
+    function setZoom(on) {
+      wrap.classList.toggle('zoom', on);
+      zoomBtn.classList.toggle('on', on);
       // The crops are rendered at 200 dpi; half size puts body text at a
       // comfortable reading size and leaves the card to scroll sideways.
-      img.style.width = on ? Math.round(item.q.qw / 2) + 'px' : '';
+      stage.style.width = on ? Math.round(item.q.qw / 2) + 'px' : '';
       if (on) wrap.scrollLeft = 0;
+      if (inkResize) inkResize();   // the ink layer has to follow the image
+    }
+    zoomBtn.addEventListener('click', function () {
+      setZoom(!wrap.classList.contains('zoom'));
+    });
+    annotateBtn.addEventListener('click', function () {
+      var on = wrap.classList.toggle('annotating');
+      annotateBtn.classList.toggle('on', on);
+    });
+    // With annotation off, tapping the question still zooms, as it always has.
+    wrap.addEventListener('click', function () {
+      if (!wrap.classList.contains('annotating')) setZoom(!wrap.classList.contains('zoom'));
     });
 
     var picked = session.answers[session.index];
+    var shown = session.marked || session.checked[session.index];
     app.querySelectorAll('.choices button').forEach(function (b) {
       var letter = b.dataset.choice;
-      if (session.marked) {
+      if (shown) {
         b.disabled = true;
         if (letter === item.q.answer) b.classList.add('right');
         else if (letter === picked) b.classList.add('wrong');
@@ -619,23 +642,45 @@
 
     var markBtn = app.querySelector('[data-act="mark"]');
     var solBtn = app.querySelector('[data-act="solution"]');
+    var oneBtn = app.querySelector('[data-act="markone"]');
+
     if (session.marked) {
       markBtn.textContent = session.mode === 'review' ? 'Score summary' : 'Back to results';
       markBtn.addEventListener('click', showResults);
-      solBtn.hidden = false;
-      if (!item.q.s) solBtn.textContent = 'Open solutions PDF';
-      solBtn.addEventListener('click', function () { revealSolution(item); });
-      showVerdict(item, picked);
     } else {
       var n = answeredCount();
       markBtn.textContent = n ? 'Mark ' + n + ' answered' : 'Mark';
       markBtn.disabled = n === 0;
       markBtn.addEventListener('click', confirmMark);
+    }
+
+    if (shown) {
+      solBtn.hidden = false;
+      if (!item.q.s) solBtn.textContent = 'Open solutions PDF';
+      solBtn.addEventListener('click', function () { revealSolution(item); });
+      showVerdict(item, picked);
+    } else {
       solBtn.hidden = true;
+      oneBtn.hidden = false;
+      oneBtn.disabled = !picked;
+      oneBtn.addEventListener('click', markOne);
     }
 
     buildNav();
-    setupBoard(item);
+    setupInk(item);
+  }
+
+  // Mark just the question on screen, without leaving the set.
+  function markOne() {
+    var i = session.index;
+    var item = session.items[i];
+    var picked = session.answers[i];
+    if (!picked || session.checked[i] || session.marked) return;
+    session.checked[i] = 1;
+    record(item.year, item.q.n, picked, picked === item.q.answer);
+    save();
+    saveDraft();
+    renderQuestion();
   }
 
   function showVerdict(item, picked) {
@@ -656,7 +701,7 @@
       b.textContent = item.q.n;
       b.title = item.year + ' Q' + item.q.n;
       if (i === session.index) b.classList.add('current');
-      if (session.marked) {
+      if (session.marked || session.checked[i]) {
         var picked = session.answers[i];
         if (picked) b.classList.add(picked === item.q.answer ? 'right' : 'wrong');
       } else if (session.answers[i]) {
@@ -689,30 +734,40 @@
     var n = answeredCount();
     markBtn.textContent = 'Mark ' + n + ' answered';
     markBtn.disabled = false;
+    app.querySelector('[data-act="markone"]').disabled = false;
     saveDraft();
   }
 
   /* ---------- whiteboard ---------- */
 
-  function setupBoard(item) {
-    var wrap = app.querySelector('.board');
-    var surface = wrap.querySelector('.board-surface');
-    var canvas = wrap.querySelector('canvas');
-    var ctx = canvas.getContext('2d');
+  function setupInk(item) {
     var k = key(item.year, item.q.n);
-    var strokes = (boards[k] && boards[k].s) ? boards[k].s.slice() : [];
+    var rec = boards[k];
+    // One ordered list of strokes covers both surfaces; each stroke carries a
+    // flag saying whether it belongs on the question or on the paper below, so
+    // undo walks back through the working in the order it was written.
+    var strokes = rec && rec.s ? rec.s.slice() : [];
+    var tools = app.querySelector('.board-tools');
     var erasing = false;
-    var live = null;
+    var surfaces = [
+      { host: app.querySelector('.qstage'), canvas: app.querySelector('.qink'), onQ: 1 },
+      { host: app.querySelector('.board-surface'), canvas: app.querySelector('.board canvas'), onQ: 0 }
+    ];
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var live = null, liveOn = null;
 
-    function paint() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      strokes.forEach(function (st) { drawStroke(st); });
-      if (live) drawStroke(live);
+    function paint(s) {
+      var ctx = s.canvas.getContext('2d');
+      ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
+      strokes.forEach(function (st) {
+        if ((st.q ? 1 : 0) === s.onQ) drawStroke(ctx, st, s.canvas.width);
+      });
+      if (live && liveOn === s) drawStroke(ctx, live, s.canvas.width);
     }
 
-    function drawStroke(st) {
-      var w = canvas.width;
+    function paintAll() { surfaces.forEach(paint); }
+
+    function drawStroke(ctx, st, w) {
       ctx.globalCompositeOperation = st.e ? 'destination-out' : 'source-over';
       ctx.strokeStyle = '#191b20';
       ctx.lineWidth = Math.max(1, st.w * w);
@@ -728,12 +783,12 @@
       ctx.globalCompositeOperation = 'source-over';
     }
 
-    function resize() {
-      var r = surface.getBoundingClientRect();
-      if (!r.width) return;
-      canvas.width = Math.round(r.width * dpr);
-      canvas.height = Math.round(r.height * dpr);
-      paint();
+    function resize(s) {
+      var r = s.host.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      s.canvas.width = Math.round(r.width * dpr);
+      s.canvas.height = Math.round(r.height * dpr);
+      paint(s);
     }
 
     function store() {
@@ -742,65 +797,66 @@
       saveBoards();
     }
 
-    function at(e) {
-      var r = canvas.getBoundingClientRect();
-      return [(e.clientX - r.left) * dpr / canvas.width,
-              (e.clientY - r.top) * dpr / canvas.width];
-    }
-
-    canvas.addEventListener('pointerdown', function (e) {
-      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* no capture */ }
-      live = { e: erasing ? 1 : 0, w: (erasing ? 16 : 2.4) * dpr / canvas.width, p: [at(e)] };
-      paint();
+    surfaces.forEach(function (s) {
+      function at(e) {
+        var r = s.canvas.getBoundingClientRect();
+        return [(e.clientX - r.left) * dpr / s.canvas.width,
+                (e.clientY - r.top) * dpr / s.canvas.width];
+      }
+      s.canvas.addEventListener('pointerdown', function (e) {
+        e.stopPropagation();   // a stroke on the question must not also zoom it
+        try { s.canvas.setPointerCapture(e.pointerId); } catch (err) { /* no capture */ }
+        liveOn = s;
+        live = { e: erasing ? 1 : 0, q: s.onQ,
+                 w: (erasing ? 16 : 2.4) * dpr / s.canvas.width, p: [at(e)] };
+        paint(s);
+      });
+      s.canvas.addEventListener('pointermove', function (e) {
+        if (!live || liveOn !== s) return;
+        var pt = at(e), last = live.p[live.p.length - 1];
+        var min = 1.5 * dpr / s.canvas.width;
+        if (Math.abs(pt[0] - last[0]) < min && Math.abs(pt[1] - last[1]) < min) return;
+        live.p.push([round(pt[0]), round(pt[1])]);
+        paint(s);
+      });
+      function finish(e) {
+        if (!live || liveOn !== s) return;
+        if (e) e.stopPropagation();
+        strokes.push(live);
+        live = null;
+        paint(s);
+        store();
+      }
+      s.canvas.addEventListener('pointerup', finish);
+      s.canvas.addEventListener('pointercancel', finish);
+      s.canvas.addEventListener('pointerleave', finish);
+      s.canvas.addEventListener('click', function (e) { e.stopPropagation(); });
     });
 
-    canvas.addEventListener('pointermove', function (e) {
-      if (!live) return;
-      var pt = at(e), last = live.p[live.p.length - 1];
-      var min = 1.5 * dpr / canvas.width;
-      if (Math.abs(pt[0] - last[0]) < min && Math.abs(pt[1] - last[1]) < min) return;
-      live.p.push([round(pt[0]), round(pt[1])]);
-      paint();
-    });
-
-    function finish() {
-      if (!live) return;
-      strokes.push(live);
-      live = null;
-      paint();
-      store();
-    }
-    canvas.addEventListener('pointerup', finish);
-    canvas.addEventListener('pointercancel', finish);
-    canvas.addEventListener('pointerleave', finish);
-
-    wrap.querySelectorAll('.board-tools button').forEach(function (b) {
+    tools.querySelectorAll('button').forEach(function (b) {
       b.addEventListener('click', function () {
         var tool = b.dataset.tool;
-        if (tool === 'undo') {
-          strokes.pop(); paint(); store(); return;
-        }
+        if (tool === 'undo') { strokes.pop(); paintAll(); store(); return; }
         if (tool === 'clear') {
           if (strokes.length && !confirm('Wipe the working for this question?')) return;
-          strokes = []; paint(); store(); return;
+          strokes = []; paintAll(); store(); return;
         }
         erasing = tool === 'eraser';
-        wrap.querySelectorAll('[data-tool="pen"], [data-tool="eraser"]').forEach(function (t) {
+        tools.querySelectorAll('[data-tool="pen"], [data-tool="eraser"]').forEach(function (t) {
           t.classList.toggle('on', t === b);
         });
       });
     });
 
-    // Watch the box rather than the window, so a rotation, a resized pane or
-    // an on-screen keyboard all keep the backing store in step.
+    // Watch the boxes rather than the window, so zooming the question, a
+    // rotation or a resized pane all keep the backing stores in step.
+    inkResize = function () { surfaces.forEach(resize); };
     if (boardWatch) boardWatch.disconnect();
     if (window.ResizeObserver) {
-      boardWatch = new ResizeObserver(resize);
-      boardWatch.observe(surface);
-    } else {
-      window.addEventListener('resize', resize);
+      boardWatch = new ResizeObserver(inkResize);
+      surfaces.forEach(function (s) { boardWatch.observe(s.host); });
     }
-    resize();
+    inkResize();
   }
 
   function round(v) { return Math.round(v * 10000) / 10000; }
@@ -843,6 +899,7 @@
     session.items.forEach(function (item, i) {
       var picked = session.answers[i];
       if (!picked) return;
+      if (session.checked[i]) return;   // already recorded, one at a time
       var prior = progress.attempts[key(item.year, item.q.n)];
       // An answer carried in from an earlier sitting and left alone is already
       // on the record; re-recording it would count the question twice.
@@ -917,6 +974,8 @@
   }
 
   /* ---------- boot ---------- */
+
+  window.addEventListener('resize', function () { if (inkResize) inkResize(); });
 
   backBtn.addEventListener('click', function () {
     if (session && !session.marked && answeredCount()) {

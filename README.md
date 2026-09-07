@@ -50,9 +50,14 @@ clean instead.
 - **Practise mistakes** — replays the questions you have previously got wrong.
 - A strip of question numbers shows at a glance what is answered, and after marking, what
   was right. Every original PDF is one tap away from the paper list.
-- **Rough working** — a squared whiteboard fills the page below each question. Draw with a
-  finger or a stylus; pen, eraser, undo and clear. Working is kept per question, so it is
-  still there when you come back to it, and it survives closing the app.
+- **Rough working** — a squared whiteboard fills the page below each question, and
+  **Write on question** turns the question itself into a surface you can underline, ring and
+  annotate on. Draw with a finger or a stylus; pen, eraser, undo and clear act on both, in
+  the order you wrote. Working is kept per question, so it is still there when you come back
+  to it, and it survives closing the app. Zooming scales your annotations with the image.
+- **Mark this one** grades just the question on screen, without leaving the set: the verdict
+  and the worked solution appear straight away and the clock keeps running, so you can check
+  a hard one and carry on. It counts once, whether it is marked on its own or with the set.
 
 Progress lives in the browser's local storage on the device. Nothing is uploaded, and
 there is no account or tracking.

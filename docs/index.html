@@ -74,9 +74,16 @@
   <section class="quiz">
     <div class="progressbar"><i></i></div>
     <div class="qwrap">
-      <img class="qimg" alt="Question" decoding="async">
+      <div class="qstage">
+        <img class="qimg" alt="Question" decoding="async">
+        <canvas class="qink"></canvas>
+      </div>
     </div>
-    <p class="hint">Tap the question to zoom &middot; pinch to zoom further</p>
+    <div class="qtools">
+      <button data-q="zoom">Zoom</button>
+      <button data-q="annotate">Write on question</button>
+      <span class="hint">pinch to zoom further</span>
+    </div>
     <div class="choices">
       <button data-choice="A">A</button><button data-choice="B">B</button>
       <button data-choice="C">C</button><button data-choice="D">D</button>
@@ -92,6 +99,7 @@
     </div>
     <div class="quiz-actions">
       <button class="ghost" data-act="solution" hidden>Show solution</button>
+      <button class="ghost" data-act="markone" hidden>Mark this one</button>
       <button class="primary" data-act="mark">Mark</button>
     </div>
     <ol class="navstrip"></ol>
