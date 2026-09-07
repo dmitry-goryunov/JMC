@@ -5,8 +5,8 @@ Challenge**, built from the published past papers in this repository.
 
 **Open it here → https://dmitry-goryunov.github.io/JMC/**
 
-375 questions from 15 papers (2011–2013, 2015–2026), each with the official answer and,
-for 14 of the 15 years, the official worked solution.
+400 questions from 16 papers (2011–2026), each with the official answer and, for 15 of the
+16 years, the official worked solution.
 
 ## Using it on Android
 
@@ -78,15 +78,15 @@ appear exactly as printed. The script:
   in prose by their left-margin alignment;
 - detects repeated headers and footers geometrically and keeps them out of the crops;
 - stitches a question that straddles a page break into one image;
-- reads the answer letter from the official solutions (or, for 2011–2013, from the
-  extended solutions' Quick Marking Guide);
+- reads the answer letter from the official solutions, from the extended solutions' Quick
+  Marking Guide (2011–2013), or from the head of the worked solution (2014);
 - checks each crop afterwards: all five options present, and no bleed into the next question.
 
 Three quirks in the source files are handled specially:
 
 | Year(s) | Quirk | Handling |
 |---|---|---|
-| 2011–2013 | Extended solutions: question and worked solution in one file | Question ends at the `Solution:` line, or at the framed panel (2013) |
+| 2011–2014 | Extended solutions: question and worked solution in one file | Question ends at the `Solution` line, or at the framed panel (2013) |
 | 2013 | Invisible duplicate solution text sits underneath the question panels | Panel geometry is used instead of the text |
 | 2016 | Type 3 fonts with no unicode mapping — extracted text is a substitution cipher | Cipher recovered from the 1–25 numbering; the solutions file is too fragmented to crop, so that year links the solutions PDF instead |
 

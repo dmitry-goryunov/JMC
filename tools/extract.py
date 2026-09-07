@@ -19,6 +19,7 @@ PAPERS = {
     2011: ('jmc-2011-extended.pdf', None),
     2012: ('jmc-2012-extended.pdf', None),
     2013: ('jmc-2013-extended.pdf', None),
+    2014: ('jmc-2014-extended.pdf', None),
     2015: ('jmc-2015-q.pdf', 'jmc-2015-s.pdf'),
     2016: ('jmc-2016-q.pdf', 'jmc-2016-s.pdf'),
     2017: ('jmc-2017-q.pdf', 'jmc-2017-s.pdf'),
@@ -32,7 +33,7 @@ PAPERS = {
     2025: ('JMC-2025-Paper.pdf', 'JMC-2025-Solutions.pdf'),
     2026: ('JMC_Paper_2026.pdf', 'JMC_Solutions_2026.pdf'),
 }
-EXTENDED = {2011, 2012, 2013}
+EXTENDED = {2011, 2012, 2013, 2014}
 
 # The 2016 PDFs embed Type3 fonts with no unicode mapping, so extracted text is
 # a substitution cipher (a different one per file). For the question paper the
@@ -298,8 +299,36 @@ def answers_from_markers(ls, mk):
 def answers_marking_guide(doc):
     txt = doc[0].get_text()
     m = re.search(r'Quick Marking Guide(.{0,1200})', txt, re.S)
-    seq = re.findall(r'\b([A-E])\b', m.group(1) if m else txt)
+    if not m:
+        return {}
+    seq = re.findall(r'\b([A-E])\b', m.group(1))
     return {i + 1: c for i, c in enumerate(seq[:25])}
+
+
+def answers_from_solution_lines(ls, mk):
+    """Where an extended paper carries no marking guide, the answer opens its
+    worked solution: either 'Solution: D' or a 'D ...' line just below it."""
+    ans = {}
+    for n, m in mk.items():
+        i = m[6]
+        for j in range(i + 1, len(ls)):
+            t = ls[j][5]
+            if j > i + 1 and re.match(r'^\d{1,2}[.)](?!\d)', t):
+                break                       # ran on into the next question
+            sol = re.match(r'^solution\b[:\s]*(.*)$', t, re.I)
+            if not sol:
+                continue
+            inline = re.match(r'^([A-E])(\s|$)', sol.group(1).strip())
+            if inline:
+                ans[n] = inline.group(1)
+            else:
+                for k in range(j + 1, min(j + 3, len(ls))):
+                    after = re.match(r'^([A-E])(\s|$)', ls[k][5])
+                    if after:
+                        ans[n] = after.group(1)
+                        break
+            break
+    return ans
 
 
 def process(year, paper, sol):
@@ -313,6 +342,8 @@ def process(year, paper, sol):
 
     if year in EXTENDED:
         ans = answers_marking_guide(qdoc)
+        if len(ans) < 25:
+            ans = answers_from_solution_lines(qls, qmk)
         sdoc, sbands, smk = qdoc, qbands, qmk
         sxl, sxr = xl, xr
         boxes = question_boxes(qdoc)
