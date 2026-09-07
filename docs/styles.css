@@ -164,12 +164,12 @@ a { color: var(--brand); }
 .qimg, .simg { display: block; width: 100%; height: auto; }
 .qstage { position: relative; width: 100%; }
 .qstage .qimg { width: 100%; }
-.qink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.qwrap.annotating .qink { pointer-events: auto; touch-action: none; cursor: crosshair; }
-.qwrap.annotating { outline: 2px solid var(--brand); outline-offset: -1px; }
-.qwrap { cursor: zoom-in; -webkit-overflow-scrolling: touch; }
-.qwrap.zoom { cursor: zoom-out; }
-.qwrap.annotating { cursor: default; }
+.qink {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  touch-action: none;   /* the question is a writing surface, like the paper */
+  cursor: crosshair;
+}
+.qwrap { -webkit-overflow-scrolling: touch; }
 
 .qtools { display: flex; align-items: center; gap: 8px; margin: -6px 2px 14px; }
 .qtools button {

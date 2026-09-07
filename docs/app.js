@@ -596,7 +596,6 @@
     var wrap = app.querySelector('.qwrap');
     var stage = app.querySelector('.qstage');
     var zoomBtn = app.querySelector('[data-q="zoom"]');
-    var annotateBtn = app.querySelector('[data-q="annotate"]');
 
     function setZoom(on) {
       wrap.classList.toggle('zoom', on);
@@ -609,14 +608,6 @@
     }
     zoomBtn.addEventListener('click', function () {
       setZoom(!wrap.classList.contains('zoom'));
-    });
-    annotateBtn.addEventListener('click', function () {
-      var on = wrap.classList.toggle('annotating');
-      annotateBtn.classList.toggle('on', on);
-    });
-    // With annotation off, tapping the question still zooms, as it always has.
-    wrap.addEventListener('click', function () {
-      if (!wrap.classList.contains('annotating')) setZoom(!wrap.classList.contains('zoom'));
     });
 
     var picked = session.answers[session.index];
