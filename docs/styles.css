@@ -100,22 +100,30 @@ a { color: var(--brand); }
 .bar i { display: block; height: 100%; background: var(--brand); border-radius: 3px; }
 
 .seg {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
   border-top: 1px solid var(--line);
   margin-top: 12px;
-  padding-top: 11px;
+  padding-top: 12px;
 }
+.seg-score {
+  border-right: 1px solid var(--line);
+  padding-right: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.seg-score b { display: block; font-size: 18px; line-height: 1.15; }
+.seg-score span { display: block; font-size: 11.5px; color: var(--muted); }
+.seg-score.none b { color: var(--muted); opacity: .5; }
+.seg-score.none span { font-variant-numeric: normal; }
+
 .seg-top { display: flex; align-items: baseline; gap: 8px; }
 .seg-label { font-size: 15px; font-weight: 650; }
 .seg-sub { font-size: 12px; color: var(--muted); }
 .seg-count { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.seg .bar { margin: 8px 0 9px; }
-.seg-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.seg-result {
-  flex: 1 0 100%; margin: 0 0 8px; font-size: 12.5px; color: var(--ok);
-  font-weight: 600; font-variant-numeric: tabular-nums;
-}
-.seg-result.none { color: var(--muted); font-weight: 400; }
-.seg-result.whole { margin: 8px 0 0; color: var(--brand); }
+.seg .bar { margin: 8px 0 10px; }
+.seg-foot { display: flex; }
 .seg-btns { display: flex; gap: 6px; margin-left: auto; }
 .seg-btns button {
   min-width: 76px; min-height: 38px; padding: 0 12px; border-radius: 10px;
@@ -124,6 +132,11 @@ a { color: var(--brand); }
 }
 .seg-btns button.go { border-color: transparent; background: var(--brand-soft); color: var(--brand); }
 .seg-btns button:disabled { opacity: .4; cursor: default; }
+
+.whole-result {
+  margin: 8px 0 0; font-size: 12.5px; font-weight: 600;
+  color: var(--brand); font-variant-numeric: tabular-nums;
+}
 
 .paper-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .paper-actions button, .paper-actions a {

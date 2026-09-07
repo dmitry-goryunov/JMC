@@ -202,7 +202,7 @@
     var mockResult = progress.results[resultKey(paper.year, SEGMENTS.all)];
     if (mockResult) {
       var m = document.createElement('p');
-      m.className = 'seg-result whole';
+      m.className = 'whole-result';
       m.textContent = 'Full paper: ' + fmtResult(mockResult);
       li.appendChild(m);
     }
@@ -251,7 +251,20 @@
 
     var box = document.createElement('div');
     box.className = 'seg';
-    box.innerHTML =
+
+    // The mark and the time it took sit in their own column, left of the set.
+    var scoreCol = document.createElement('div');
+    scoreCol.className = 'seg-score' + (result ? '' : ' none');
+    scoreCol.innerHTML = result
+      ? '<b>' + result.marks + '/' + result.possible + '</b>' +
+        '<span>' + fmtDuration(result.secs) + '</span>' +
+        '<span>' + fmtDate(result.at) + '</span>'
+      : '<b>–</b><span>not marked</span>';
+    box.appendChild(scoreCol);
+
+    var main = document.createElement('div');
+    main.className = 'seg-main';
+    main.innerHTML =
       '<div class="seg-top">' +
         '<span class="seg-label">' + seg.label + '</span>' +
         '<span class="seg-sub">' + seg.range + ' · ' + mins + ' min</span>' +
@@ -261,11 +274,6 @@
 
     var foot = document.createElement('div');
     foot.className = 'seg-foot';
-
-    var res = document.createElement('p');
-    res.className = 'seg-result' + (result ? '' : ' none');
-    res.textContent = result ? fmtResult(result) : 'Not marked yet';
-    foot.appendChild(res);
 
     var btns = document.createElement('span');
     btns.className = 'seg-btns';
@@ -284,7 +292,8 @@
     btns.appendChild(rev);
 
     foot.appendChild(btns);
-    box.appendChild(foot);
+    main.appendChild(foot);
+    box.appendChild(main);
     return box;
   }
 
