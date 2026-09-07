@@ -8,7 +8,7 @@
   var BOARD_STORE = 'jmc.board.v1';
   var DRAFT_STORE = 'jmc.draft.v1';
   // Bumped on every publish, so the running app can say which build it is.
-  var BUILD = '2026-09-07b';
+  var BUILD = '2026-09-07c';
   var PAPER_MINUTES = 60;   // the real Junior Mathematical Challenge allowance
   var PAPER_MARKS = 135;    // 15 questions at 5 marks, 10 at 6
   var app = document.getElementById('app');
@@ -196,6 +196,10 @@
     return out;
   }
 
+  function countIn(year, seg) {
+    return questionsIn(year, seg).length;
+  }
+
   function answeredIn(year, seg) {
     return questionsIn(year, seg).filter(function (item) {
       return progress.attempts[key(year, item.q.n)];
@@ -320,10 +324,12 @@
     var li = document.createElement('li');
     li.className = 'paper';
     var total = answeredIn(paper.year, SEGMENTS.all);
+    var whole = countIn(paper.year, SEGMENTS.all);
 
     var head = document.createElement('div');
     head.className = 'paper-head';
-    head.innerHTML = '<b>' + paper.year + '</b><span class="done">' + total + '/25 answered</span>';
+    head.innerHTML = '<b>' + paper.year + '</b><span class="done">' +
+      total + '/' + whole + ' answered</span>';
     li.appendChild(head);
 
     var mockResult = progress.results[resultKey(paper.year, SEGMENTS.all)];
@@ -352,8 +358,8 @@
     acts.appendChild(mock);
 
     var pdf = document.createElement('a');
-    pdf.textContent = 'PDF';
-    pdf.href = 'papers/JMC-' + paper.year + '-paper.pdf';
+    pdf.textContent = paper.paperUrl ? 'UKMT' : 'PDF';
+    pdf.href = paper.paperUrl || ('papers/JMC-' + paper.year + '-paper.pdf');
     pdf.target = '_blank';
     pdf.rel = 'noopener';
     acts.appendChild(pdf);
@@ -375,6 +381,7 @@
 
   function segmentBlock(year, seg) {
     var done = answeredIn(year, seg);
+    var size = countIn(year, seg);
     var mins = minutesFor(questionsIn(year, seg));
     var result = progress.results[resultKey(year, seg)];
     var pending = draftCount(resultKey(year, seg));
@@ -401,9 +408,9 @@
         '<span class="seg-sub">' + (pending
           ? pending + ' answered · ' + Math.round((draft.left || 0) / 60000) + ' min left'
           : seg.range + ' · ' + mins + ' min') + '</span>' +
-        '<span class="seg-count">' + done + '/' + seg.count + '</span>' +
+        '<span class="seg-count">' + done + '/' + size + '</span>' +
       '</div>' +
-      '<div class="bar"><i style="width:' + (done / seg.count * 100) + '%"></i></div>';
+      '<div class="bar"><i style="width:' + (size ? done / size * 100 : 0) + '%"></i></div>';
 
     var foot = document.createElement('div');
     foot.className = 'seg-foot';
@@ -414,7 +421,7 @@
     var go = document.createElement('button');
     go.className = 'go' + (pending ? ' resume' : '');
     go.textContent = pending ? 'Resume'
-      : done === 0 ? 'Start' : done < seg.count ? 'Continue' : 'Redo';
+      : done === 0 ? 'Start' : done < size ? 'Continue' : 'Redo';
     go.addEventListener('click', function () { startPaper(year, seg, false); });
     btns.appendChild(go);
 
@@ -511,7 +518,7 @@
   function startPaper(year, seg, mock) {
     var items = questionsIn(year, seg);
     var answers = {}, start = 0;
-    if (!mock && answeredIn(year, seg) < seg.count) {
+    if (!mock && answeredIn(year, seg) < countIn(year, seg)) {
       // Continuing a part-finished half brings the earlier answers back with it,
       // so you can see what you already did. A finished half starts clean - that
       // is a redo, not a continuation.
@@ -680,7 +687,7 @@
     }
 
     if (shown) {
-      solBtn.hidden = false;
+      solBtn.hidden = !item.q.s && !solutionPdf(item.year);
       if (!item.q.s) solBtn.textContent = 'Open solutions PDF';
       solBtn.addEventListener('click', function () { revealSolution(item); });
       showVerdict(item, picked);
@@ -899,10 +906,17 @@
 
   function round(v) { return Math.round(v * 10000) / 10000; }
 
+  function solutionPdf(year) {
+    // 2016's solutions file cannot be cropped per question, so the whole PDF
+    // stands in. The 2004-2010 years have no PDF at all.
+    var paper = data.papers[year];
+    return paper && !paper.legacy ? 'papers/JMC-' + year + '-solutions.pdf' : null;
+  }
+
   function revealSolution(item) {
     if (!item.q.s) {
-      // 2016's solutions PDF cannot be cropped reliably, so open it whole.
-      window.open('papers/JMC-' + item.year + '-solutions.pdf', '_blank', 'noopener');
+      var pdf = solutionPdf(item.year);
+      if (pdf) window.open(pdf, '_blank', 'noopener');
       return;
     }
     var box = app.querySelector('.solution');

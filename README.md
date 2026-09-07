@@ -5,8 +5,8 @@ Challenge**, built from the published past papers in this repository.
 
 **Open it here → https://dmitry-goryunov.github.io/JMC/**
 
-400 questions from 16 papers (2011–2026), each with the official answer and, for 15 of the
-16 years, the official worked solution.
+574 questions from 23 papers (2004–2026), each with the official answer and, for all but one
+year, the official worked solution.
 
 ## Using it on Android
 
@@ -69,6 +69,10 @@ there is no account or tracking.
 
 ## How the questions were made
 
+Two routes, because UKMT publishes these years in two different shapes.
+
+### 2011–2026, from the PDFs
+
 Questions are not retyped — `tools/extract.py` crops each one straight out of the source
 PDF and renders it as a lossless WebP image, so diagrams, fractions and geometric figures
 appear exactly as printed. The script:
@@ -90,6 +94,9 @@ Three quirks in the source files are handled specially:
 | 2013 | Invisible duplicate solution text sits underneath the question panels | Panel geometry is used instead of the text |
 | 2016 | Type 3 fonts with no unicode mapping — extracted text is a substitution cipher | Cipher recovered from the 1–25 numbering; the solutions file is too fragmented to crop, so that year links the solutions PDF instead |
 
+Because 2007 has 24 questions rather than 25, the app takes each paper's size from the bank
+rather than assuming 25: its first half is 14 questions, and is timed accordingly.
+
 To rebuild after adding a paper, add it to `PAPERS` in `tools/extract.py` and run:
 
 ```bash
@@ -97,6 +104,34 @@ python tools/extract.py
 ```
 
 It needs PyMuPDF and Pillow, and writes `docs/assets/` and `docs/data/questions.json`.
+
+### 2004–2010, from the individual-problem pages
+
+These years have no PDF. UKMT publishes them at
+`ukmt.org.uk/free-past-papers/junior-mathematical-challenge-<year>` as one GIF per question
+and one per worked solution, and the images appear in the page source in reading order —
+question, solution, question, solution. `tools/import_legacy.py` pairs them by position,
+strips the UKMT logo band and footer from each question page, trims and rescales.
+
+Nothing in the markup says which question an image belongs to; the number is printed inside
+the picture. So the pairing is only as good as that ordering, and two years break it:
+
+| Year | What is missing | Effect |
+|---|---|---|
+| 2004 | No published solution for Q3 | The question is included; its answer was worked out here rather than read from UKMT |
+| 2007 | No published question image for Q7 | That question is left out, so 2007 has 24 |
+
+Questions and solutions are told apart by the pair of UKMT logos in the top corners of every
+question page — size does not work, since a long solution can be as tall as a page. Ordering
+was then checked by eye for all seven years, and the answer keys were read off the letter
+printed at the head of each worked solution.
+
+```bash
+bash tools/fetch_legacy.sh     # download the GIFs; re-run until nothing is missing
+python tools/import_legacy.py  # pair, crop and add them to the catalogue
+```
+
+The host throttles a fast run, so the download caches every file and resumes.
 
 ## Layout
 
@@ -106,6 +141,8 @@ docs/                 the site published by GitHub Pages
   data/questions.json answer key and image index
   assets/q assets/s  cropped question and solution images
   papers/            the source PDFs, renamed by year
+tools/import_legacy.py  2004-2010 GIF pages -> images + answer key
+source_legacy/       cached GIFs and pages for 2004-2010
 tools/extract.py     PDF -> images + answer key
 *.pdf                original UKMT downloads
 ```
