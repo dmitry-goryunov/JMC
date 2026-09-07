@@ -45,9 +45,13 @@ clean instead.
   **Review** walks back through it with the worked solutions, untimed. Each year has its
   own **Reset**.
 - **Timed mock** — the full 25-question paper against the full 60-minute clock.
-- **Quick mix** — 10 random questions from any year.
-- **Hard mix** — 10 random questions drawn only from Q16–25.
-- **Practise mistakes** — replays the questions you have previously got wrong.
+- **Quick mix** — 10 questions drawn from everything you have not yet got right: never
+  attempted, or attempted and got wrong. Answer one correctly and it drops out of the pool,
+  so the mixes narrow towards the questions that still need work. The card shows how many
+  are left.
+- **Hard mix** — the same, restricted to Q16–25.
+- **Practise mistakes** — only the questions you have actually got wrong.
+- Because a mix spans papers, each number in the question strip carries its year underneath.
 - A strip of question numbers shows at a glance what is answered, and after marking, what
   was right. Every original PDF is one tap away from the paper list.
 - **Rough working** — the question itself is a writing surface, so you can underline it,

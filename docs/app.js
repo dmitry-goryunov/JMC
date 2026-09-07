@@ -263,12 +263,25 @@
       seen ? Math.round(right / seen * 100) + '%' : '–';
     app.querySelector('[data-stat="streak"]').textContent = progress.best;
 
-    var weak = wrongPool();
-    var weakBtn = app.querySelector('[data-mode="weak"]');
-    weakBtn.disabled = weak.length === 0;
-    weakBtn.querySelector('span').textContent = weak.length
-      ? weak.length + ' question' + (weak.length === 1 ? '' : 's') + ' to revisit'
-      : 'Nothing to revisit yet';
+    var blurbs = {
+      mix: function (n) {
+        return n ? n + ' still to get right, from any year'
+                 : 'Every question answered correctly';
+      },
+      hard: function (n) {
+        return n ? n + ' still to get right, from Q16–25'
+                 : 'Every hard question answered correctly';
+      },
+      weak: function (n) {
+        return n ? n + ' question' + (n === 1 ? '' : 's') + ' to revisit'
+                 : 'Nothing to revisit yet';
+      }
+    };
+    app.querySelectorAll('.mode').forEach(function (b) {
+      var left = poolFor(b.dataset.mode).length;
+      b.disabled = left === 0;
+      b.querySelector('span').textContent = blurbs[b.dataset.mode](left);
+    });
 
     app.querySelectorAll('.mode').forEach(function (b) {
       var pending = draftCount('mode:' + b.dataset.mode);
@@ -453,18 +466,32 @@
     });
   }
 
+  // What a mix draws from: everything not yet got right. A question answered
+  // correctly drops out, so the mixes narrow towards what still needs work.
+  function unsolvedPool() {
+    return allQuestions().filter(function (item) {
+      var a = progress.attempts[key(item.year, item.q.n)];
+      return !a || a.ok === false;
+    });
+  }
+
   /* ---------- sessions ---------- */
 
-  function startMode(mode) {
-    var pool;
+  function poolFor(mode) {
     if (mode === 'hard') {
-      pool = allQuestions().filter(function (i) { return i.q.n >= 16; });
-    } else if (mode === 'weak') {
-      pool = wrongPool();
-    } else {
-      pool = allQuestions();
+      return unsolvedPool().filter(function (i) { return i.q.n >= 16; });
     }
-    if (!pool.length) { toast('No questions available for that mode.'); return; }
+    if (mode === 'weak') return wrongPool();
+    return unsolvedPool();
+  }
+
+  function startMode(mode) {
+    var pool = poolFor(mode);
+    if (!pool.length) {
+      toast(mode === 'weak' ? 'No mistakes to revisit.'
+            : 'Nothing left here - you have got them all right.');
+      return;
+    }
     var saved = drafts['mode:' + mode];
     var items = (saved && itemsFromIds(saved.ids)) || shuffle(pool.slice()).slice(0, 10);
     begin({
@@ -684,13 +711,26 @@
       '<small>' + item.year + ' Q' + item.q.n + ' · ' + marksFor(item.q.n) + ' marks</small>';
   }
 
+  function mixedYears() {
+    var first = session.items[0] && session.items[0].year;
+    return session.items.some(function (i) { return i.year !== first; });
+  }
+
+  function numberButton(item, showYear) {
+    var b = document.createElement('button');
+    b.title = item.year + ' Q' + item.q.n;
+    if (!showYear) { b.textContent = item.q.n; return b; }
+    b.className = 'withyear';
+    b.innerHTML = '<b>' + item.q.n + '</b><small>' + item.year + '</small>';
+    return b;
+  }
+
   function buildNav() {
     var nav = app.querySelector('.navstrip');
+    var showYear = mixedYears();
     session.items.forEach(function (item, i) {
       var li = document.createElement('li');
-      var b = document.createElement('button');
-      b.textContent = item.q.n;
-      b.title = item.year + ' Q' + item.q.n;
+      var b = numberButton(item, showYear);
       if (i === session.index) b.classList.add('current');
       if (session.marked || session.checked[i]) {
         var picked = session.answers[i];
@@ -942,13 +982,12 @@
       : 'Took ' + fmtDuration(secs) + ' · ' + fmtDate(when);
 
     var grid = app.querySelector('[data-res="grid"]');
+    var showYear = mixedYears();
     session.items.forEach(function (item, i) {
       var li = document.createElement('li');
-      var b = document.createElement('button');
+      var b = numberButton(item, showYear);
       var picked = session.answers[i];
-      b.textContent = item.q.n;
-      b.title = item.year + ' Q' + item.q.n;
-      if (picked) b.className = picked === item.q.answer ? 'right' : 'wrong';
+      if (picked) b.classList.add(picked === item.q.answer ? 'right' : 'wrong');
       b.addEventListener('click', function () { goTo(i); });
       li.appendChild(b);
       grid.appendChild(li);

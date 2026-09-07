@@ -246,6 +246,15 @@ a { color: var(--brand); }
 .navstrip li button.wrong { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
 .navstrip li button.current { outline: 2px solid var(--brand); outline-offset: 1px; }
 
+/* In a mix the questions come from different papers, so each carries its year. */
+.navstrip li button.withyear, .grid li button.withyear {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1px; padding: 4px 0; line-height: 1.05;
+}
+.withyear b { font-size: 14px; font-weight: 700; }
+.withyear small { font-size: 9.5px; opacity: .75; font-weight: 500; letter-spacing: .01em; }
+.navstrip { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); }
+
 .quiz-actions button:disabled { opacity: .4; cursor: default; }
 
 .board { margin: 20px -12px 0; }

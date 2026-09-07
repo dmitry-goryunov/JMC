@@ -69,10 +69,14 @@ def get_lines(doc, year):
                     # Some Type3 fonts declare a glyph box far larger than the
                     # type they draw; fall back to the baseline in that case.
                     size = max(sp["size"] for sp in l["spans"])
+                    bt = b["bbox"][1]
                     if size > 0 and (y1 - y0) > 2.2 * size:
                         base = max(sp["origin"][1] for sp in l["spans"])
                         y0, y1 = base - size * 1.10, base + size * 0.32
-                    out.append((pno, y0, x0, y1, x1, t, li == 0, b["bbox"][1]))
+                        # The block box is inflated by the same glyphs, so it
+                        # cannot be trusted to say where the paragraph starts.
+                        bt = y0
+                    out.append((pno, y0, x0, y1, x1, t, li == 0, bt))
     out.sort(key=lambda r: (r[0], round(r[1], 1), r[2]))
     return out
 
@@ -238,23 +242,26 @@ def spans_between(doc, bands, a, b, tail, gap=3):
     return out
 
 
+def lines_in(ls, spans):
+    return [l for l in ls
+            if any(l[0] == sp and sp0 - 1 <= l[1] and l[3] <= sp1 + 1
+                   for (sp, sp0, sp1) in spans)]
+
+
 def has_all_options(ls, spans, year):
     """True when the text inside a crop carries all five option labels, which is
     what catches a question that was cut short."""
     if year == 2016:
-        return True  # only part of its cipher is known, so the text is unreliable
+        # Only the option letters and digits of its cipher are known, so match
+        # bare letters rather than whitespace-delimited tokens.
+        text = ''.join(l[5] for l in lines_in(ls, spans))
+        return set(c for c in text if c in 'ABCDE') >= set('ABCDE')
     seen = set()
     for (p, y0, x0, y1, x1, t, bs, bt) in ls:
         if any(p == sp and sp0 - 1 <= y0 and y1 <= sp1 + 1 for (sp, sp0, sp1) in spans):
             for m in re.finditer(r'(?:^|\s)([A-E])(?=\s|$)', t):
                 seen.add(m.group(1))
     return seen >= set('ABCDE')
-
-
-def lines_in(ls, spans):
-    return [l for l in ls
-            if any(l[0] == sp and sp0 - 1 <= l[1] and l[3] <= sp1 + 1
-                   for (sp, sp0, sp1) in spans)]
 
 
 def bleeds_into_next(ls, spans, n):
