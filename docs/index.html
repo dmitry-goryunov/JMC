@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JMC Practice</title>
+<meta name="description" content="Junior Mathematical Challenge past papers, 2011-2026, as an offline practice app.">
+<meta name="theme-color" content="#12305c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header id="topbar">
+  <button id="back" class="icon-btn" hidden aria-label="Back">&#8592;</button>
+  <h1 id="title">JMC Practice</h1>
+  <div id="topmeta"></div>
+</header>
+
+<main id="app"></main>
+
+<template id="tpl-home">
+  <section class="pad">
+    <div class="stats-card">
+      <div class="stat"><b data-stat="answered">0</b><span>answered</span></div>
+      <div class="stat"><b data-stat="accuracy">&ndash;</b><span>accuracy</span></div>
+      <div class="stat"><b data-stat="streak">0</b><span>best streak</span></div>
+    </div>
+
+    <div class="modes">
+      <button class="mode" data-mode="mix">
+        <b>Quick mix</b><span>10 random questions from any year</span>
+      </button>
+      <button class="mode" data-mode="hard">
+        <b>Hard mix</b><span>10 random questions from Q16&ndash;25</span>
+      </button>
+      <button class="mode" data-mode="weak">
+        <b>Practise mistakes</b><span>Questions you have got wrong before</span>
+      </button>
+    </div>
+
+    <h2>Past papers</h2>
+    <p class="muted">Pick a paper to work through all 25 questions, or start it as a
+      timed 60&#8209;minute mock.</p>
+    <ul id="papers" class="papers"></ul>
+
+    <h2>Offline</h2>
+    <p class="muted">Anything you have opened already works without a connection.
+      You can also fetch every question and solution now (about 13&nbsp;MB) so the
+      whole app works on a train or a plane.</p>
+    <div class="paper-actions">
+      <button id="precache" class="go">Save everything for offline</button>
+    </div>
+
+    <h2>About</h2>
+    <p class="muted">Questions and solutions are cropped straight from the UK Mathematics
+      Trust's published Junior Mathematical Challenge papers, so diagrams and notation
+      appear exactly as printed. Marks follow the current scheme: 5 for each of
+      Q1&ndash;15, 6 for each of Q16&ndash;25, with no penalty for a wrong answer.</p>
+    <p class="muted">Everything is stored on this device. <button id="reset" class="link">Reset all progress</button></p>
+    <p class="muted small">Papers &copy; UK Mathematics Trust &mdash; <a href="https://ukmt.org.uk" rel="noopener">ukmt.org.uk</a>.
+      This is an unofficial revision aid.</p>
+  </section>
+</template>
+
+<template id="tpl-quiz">
+  <section class="quiz">
+    <div class="progressbar"><i></i></div>
+    <div class="qwrap">
+      <img class="qimg" alt="Question" decoding="async">
+    </div>
+    <p class="hint">Tap the question to zoom &middot; pinch to zoom further</p>
+    <div class="choices">
+      <button data-choice="A">A</button><button data-choice="B">B</button>
+      <button data-choice="C">C</button><button data-choice="D">D</button>
+      <button data-choice="E">E</button>
+    </div>
+    <div class="verdict" hidden></div>
+    <div class="solution" hidden>
+      <img class="simg" alt="Solution" decoding="async">
+    </div>
+    <div class="quiz-actions">
+      <button class="ghost" data-act="solution" hidden>Show solution</button>
+      <button class="primary" data-act="next" hidden>Next</button>
+      <button class="ghost" data-act="skip">Skip</button>
+    </div>
+  </section>
+</template>
+
+<template id="tpl-results">
+  <section class="pad">
+    <div class="score-card">
+      <b data-res="marks">0</b><span data-res="outof"></span>
+      <p data-res="line"></p>
+    </div>
+    <ul class="grid" data-res="grid"></ul>
+    <div class="quiz-actions column">
+      <button class="primary" data-act="review">Review answers</button>
+      <button class="ghost" data-act="again">Try another set</button>
+      <button class="ghost" data-act="home">Back to start</button>
+    </div>
+  </section>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>

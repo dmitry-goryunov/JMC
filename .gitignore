@@ -1,0 +1,6 @@
+# scratch output from tools/
+tools/_*.png
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
