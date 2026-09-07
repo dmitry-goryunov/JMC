@@ -29,6 +29,11 @@ about as you like, then tap **Mark** and the whole chunk is graded at once — t
 paper works. Only then do the verdicts and worked solutions appear. Marks follow the current
 scheme: 5 for each of Q1–15, 6 for each of Q16–25, no penalty for a wrong answer.
 
+You do not have to finish in one sitting. An unfinished set is saved as you go — every
+answer, the question you were on, and the time left on the clock, which pauses while you are
+away. The card shows how far you got and the button turns into **Resume**. Even a randomly
+drawn mix comes back as the same ten questions.
+
 - **Past papers** — each paper splits into **First 15** (Q1–15) and **Last 10** (Q16–25),
   each timed, marked and tracked on its own, so the harder half can be drilled separately.
   Once a half has been marked its card shows the score, how long it took and the date;

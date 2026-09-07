@@ -6,6 +6,7 @@
 
   var STORE = 'jmc.progress.v1';
   var BOARD_STORE = 'jmc.board.v1';
+  var DRAFT_STORE = 'jmc.draft.v1';
   var PAPER_MINUTES = 60;   // the real Junior Mathematical Challenge allowance
   var PAPER_MARKS = 135;    // 15 questions at 5 marks, 10 at 6
   var app = document.getElementById('app');
@@ -26,6 +27,7 @@
   var data = null;      // { papers: { "2026": { year, questions: [...] } } }
   var progress = load();
   var boards = loadBoards();   // rough working, keyed like attempts
+  var drafts = loadDrafts();   // sets started but not yet marked
   var session = null;   // active run
   var timer = null;
   var boardWatch = null;
@@ -65,13 +67,71 @@
   }
 
   function forgetYear(year) {
-    [progress.attempts, progress.results, boards].forEach(function (store) {
+    [progress.attempts, progress.results, boards, drafts].forEach(function (store) {
       Object.keys(store).forEach(function (k) {
         if (k.indexOf(year + ':') === 0) delete store[k];
       });
     });
     save();
     saveBoards();
+    saveDrafts();
+  }
+
+  /* ---------- unfinished sets ----------
+     A set that has been started but not marked is kept, so leaving half way
+     through costs nothing: the answers, the question you were on and the time
+     still on the clock all come back. */
+
+  function loadDrafts() {
+    try { return JSON.parse(localStorage.getItem(DRAFT_STORE) || '{}'); }
+    catch (e) { return {}; }
+  }
+
+  function saveDrafts() {
+    try { localStorage.setItem(DRAFT_STORE, JSON.stringify(drafts)); } catch (e) { /* ignore */ }
+  }
+
+  function draftKeyFor(cfg) {
+    return cfg.year && cfg.seg ? cfg.year + ':' + cfg.seg.key : 'mode:' + cfg.mode;
+  }
+
+  function saveDraft() {
+    if (!session || session.marked || session.mode === 'review') return;
+    var k = session.draftKey;
+    if (!answeredCount()) {
+      delete drafts[k];
+    } else {
+      drafts[k] = {
+        ids: session.items.map(function (i) { return i.year + ':' + i.q.n; }),
+        answers: session.answers,
+        index: session.index,
+        left: Math.max(0, session.deadline - Date.now()),
+        spent: Date.now() - session.startedAt,
+        at: Date.now()
+      };
+    }
+    saveDrafts();
+  }
+
+  function dropDraft() {
+    delete drafts[session.draftKey];
+    saveDrafts();
+  }
+
+  function itemsFromIds(ids) {
+    var out = [];
+    for (var i = 0; i < ids.length; i++) {
+      var parts = ids[i].split(':');
+      var paper = data.papers[parts[0]];
+      var q = paper && paper.questions.filter(function (x) { return x.n === +parts[1]; })[0];
+      if (!q) return null;   // the bank changed under it; start clean
+      out.push({ year: +parts[0], q: q });
+    }
+    return out;
+  }
+
+  function draftCount(k) {
+    return drafts[k] ? Object.keys(drafts[k].answers).length : 0;
   }
 
   /* ---------- whiteboard storage ----------
@@ -208,6 +268,11 @@
       : 'Nothing to revisit yet';
 
     app.querySelectorAll('.mode').forEach(function (b) {
+      var pending = draftCount('mode:' + b.dataset.mode);
+      if (pending) {
+        b.classList.add('resume');
+        b.querySelector('span').textContent = 'Unfinished — ' + pending + ' answered';
+      }
       b.addEventListener('click', function () { startMode(b.dataset.mode); });
     });
 
@@ -220,8 +285,10 @@
       if (!confirm('Erase all recorded answers on this device?')) return;
       progress = { attempts: {}, results: {}, streak: 0, best: 0 };
       boards = {};
+      drafts = {};
       save();
       saveBoards();
+      saveDrafts();
       showHome();
     });
   }
@@ -251,10 +318,12 @@
     var acts = document.createElement('div');
     acts.className = 'paper-actions';
 
+    var mockPending = draftCount(resultKey(paper.year, SEGMENTS.all));
     var mock = document.createElement('button');
-    mock.textContent = 'Timed mock';
+    mock.className = mockPending ? 'resume' : '';
+    mock.textContent = mockPending ? 'Resume mock (' + mockPending + ')' : 'Timed mock';
     mock.addEventListener('click', function () {
-      if (confirm('Sit the whole ' + paper.year + ' paper against a 60-minute clock?'))
+      if (mockPending || confirm('Sit the whole ' + paper.year + ' paper against a 60-minute clock?'))
         startPaper(paper.year, SEGMENTS.all, true);
     });
     acts.appendChild(mock);
@@ -285,6 +354,8 @@
     var done = answeredIn(year, seg);
     var mins = minutesFor(questionsIn(year, seg));
     var result = progress.results[resultKey(year, seg)];
+    var pending = draftCount(resultKey(year, seg));
+    var draft = drafts[resultKey(year, seg)];
 
     var box = document.createElement('div');
     box.className = 'seg';
@@ -304,7 +375,9 @@
     main.innerHTML =
       '<div class="seg-top">' +
         '<span class="seg-label">' + seg.label + '</span>' +
-        '<span class="seg-sub">' + seg.range + ' · ' + mins + ' min</span>' +
+        '<span class="seg-sub">' + (pending
+          ? pending + ' answered · ' + Math.round((draft.left || 0) / 60000) + ' min left'
+          : seg.range + ' · ' + mins + ' min') + '</span>' +
         '<span class="seg-count">' + done + '/' + seg.count + '</span>' +
       '</div>' +
       '<div class="bar"><i style="width:' + (done / seg.count * 100) + '%"></i></div>';
@@ -316,8 +389,9 @@
     btns.className = 'seg-btns';
 
     var go = document.createElement('button');
-    go.className = 'go';
-    go.textContent = done === 0 ? 'Start' : done < seg.count ? 'Continue' : 'Redo';
+    go.className = 'go' + (pending ? ' resume' : '');
+    go.textContent = pending ? 'Resume'
+      : done === 0 ? 'Start' : done < seg.count ? 'Continue' : 'Redo';
     go.addEventListener('click', function () { startPaper(year, seg, false); });
     btns.appendChild(go);
 
@@ -388,10 +462,12 @@
       pool = allQuestions();
     }
     if (!pool.length) { toast('No questions available for that mode.'); return; }
+    var saved = drafts['mode:' + mode];
+    var items = (saved && itemsFromIds(saved.ids)) || shuffle(pool.slice()).slice(0, 10);
     begin({
       title: mode === 'hard' ? 'Hard mix' : mode === 'weak' ? 'Mistakes' : 'Quick mix',
       mode: mode,
-      items: shuffle(pool.slice()).slice(0, 10)
+      items: items
     });
   }
 
@@ -434,12 +510,23 @@
 
   function begin(cfg) {
     session = cfg;
+    session.draftKey = draftKeyFor(cfg);
     session.index = cfg.index || 0;
     session.answers = cfg.answers || {};
     session.marked = !!cfg.marked;
     session.startedAt = Date.now();
     session.deadline = session.marked
       ? null : session.startedAt + minutesFor(session.items) * 60000;
+
+    // Pick up where an unfinished run left off, clock included.
+    var draft = session.marked ? null : drafts[session.draftKey];
+    if (draft) {
+      session.answers = draft.answers;
+      session.index = Math.min(draft.index || 0, session.items.length - 1);
+      session.startedAt = Date.now() - (draft.spent || 0);
+      session.deadline = Date.now() + (draft.left || 0);
+    }
+
     backBtn.hidden = false;
     titleEl.textContent = cfg.title;
     if (session.deadline) tick();
@@ -573,6 +660,7 @@
   function goTo(i) {
     if (i < 0 || i >= session.items.length) return;
     session.index = i;
+    saveDraft();
     renderQuestion();
   }
 
@@ -589,6 +677,7 @@
     var n = answeredCount();
     markBtn.textContent = 'Mark ' + n + ' answered';
     markBtn.disabled = false;
+    saveDraft();
   }
 
   /* ---------- whiteboard ---------- */
@@ -736,6 +825,7 @@
 
   function mark() {
     stopTimer();
+    dropDraft();
     session.marked = true;
     session.takenSecs = Math.round((Date.now() - session.startedAt) / 1000);
     session.items.forEach(function (item, i) {
@@ -811,9 +901,17 @@
   /* ---------- boot ---------- */
 
   backBtn.addEventListener('click', function () {
-    if (session && !session.marked && answeredCount() &&
-        !confirm('Leave without marking? Your answers will be lost.')) return;
+    if (session && !session.marked && answeredCount()) {
+      saveDraft();
+      toast('Saved — pick it up where you left off.');
+    }
     showHome();
+  });
+
+  // Closing the tab or switching away should not cost the last answer either.
+  window.addEventListener('pagehide', saveDraft);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') saveDraft();
   });
 
   fetch('data/questions.json')

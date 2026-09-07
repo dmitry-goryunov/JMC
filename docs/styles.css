@@ -131,6 +131,11 @@ a { color: var(--brand); }
   border: 1px solid var(--line); background: transparent; color: inherit;
 }
 .seg-btns button.go { border-color: transparent; background: var(--brand-soft); color: var(--brand); }
+.seg-btns button.resume, .paper-actions button.resume {
+  background: var(--brand); border-color: transparent; color: #fff;
+}
+.mode.resume { border-color: var(--brand); }
+.mode.resume span { color: var(--brand); font-weight: 600; }
 .seg-btns button:disabled { opacity: .4; cursor: default; }
 
 .whole-result {
@@ -190,7 +195,11 @@ a { color: var(--brand); }
   background: var(--panel); color: inherit;
 }
 .quiz-actions button.primary { background: var(--brand); border-color: transparent; color: #fff; }
-@media (prefers-color-scheme: dark) { .quiz-actions button.primary { color: #10131a; } }
+@media (prefers-color-scheme: dark) {
+  .quiz-actions button.primary,
+  .seg-btns button.resume,
+  .paper-actions button.resume { color: #10131a; }
+}
 
 .score-card {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
