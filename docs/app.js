@@ -1,23 +1,24 @@
 /* JMC Practice - offline practice app for UKMT Junior Mathematical Challenge papers.
-   Answers are collected without feedback and graded in one go, the way a real
-   paper works. */
+   Every set is timed at the paper's own pace, answers are collected without
+   feedback, and the whole set is graded in one go. */
 (function () {
   'use strict';
 
   var STORE = 'jmc.progress.v1';
-  var MOCK_MINUTES = 60;
+  var PAPER_MINUTES = 60;   // the real Junior Mathematical Challenge allowance
+  var PAPER_MARKS = 135;    // 15 questions at 5 marks, 10 at 6
   var app = document.getElementById('app');
   var backBtn = document.getElementById('back');
   var titleEl = document.getElementById('title');
   var metaEl = document.getElementById('topmeta');
 
-  // The two halves of a paper are practised, and tracked, separately.
+  // The two halves of a paper are practised, timed and tracked separately.
   var SEGMENTS = {
     first: { key: 'first', label: 'First 15', range: 'Q1–15', count: 15,
              has: function (n) { return n <= 15; } },
     last:  { key: 'last', label: 'Last 10', range: 'Q16–25', count: 10,
              has: function (n) { return n >= 16; } },
-    all:   { key: 'all', label: 'All 25', range: 'Q1–25', count: 25,
+    all:   { key: 'all', label: 'Full paper', range: 'Q1–25', count: 25,
              has: function () { return true; } }
   };
 
@@ -29,11 +30,16 @@
   /* ---------- storage ---------- */
 
   function load() {
+    var p;
     try {
-      var raw = localStorage.getItem(STORE);
-      if (raw) return JSON.parse(raw);
+      p = JSON.parse(localStorage.getItem(STORE) || 'null');
     } catch (e) { /* private mode, or no storage */ }
-    return { attempts: {}, streak: 0, best: 0 };
+    p = p || {};
+    p.attempts = p.attempts || {};
+    p.results = p.results || {};
+    p.best = p.best || 0;
+    p.streak = p.streak || 0;
+    return p;
   }
 
   function save() {
@@ -41,6 +47,7 @@
   }
 
   function key(year, n) { return year + ':' + n; }
+  function resultKey(year, seg) { return year + ':' + seg.key; }
 
   function record(year, n, picked, correct) {
     var k = key(year, n);
@@ -50,13 +57,15 @@
     a.last = picked;
     a.ok = correct;
     progress.attempts[k] = a;
-    progress.streak = correct ? (progress.streak || 0) + 1 : 0;
-    progress.best = Math.max(progress.best || 0, progress.streak);
+    progress.streak = correct ? progress.streak + 1 : 0;
+    progress.best = Math.max(progress.best, progress.streak);
   }
 
   function forgetYear(year) {
-    Object.keys(progress.attempts).forEach(function (k) {
-      if (k.indexOf(year + ':') === 0) delete progress.attempts[k];
+    [progress.attempts, progress.results].forEach(function (store) {
+      Object.keys(store).forEach(function (k) {
+        if (k.indexOf(year + ':') === 0) delete store[k];
+      });
     });
     save();
   }
@@ -64,6 +73,12 @@
   /* ---------- helpers ---------- */
 
   function marksFor(n) { return n <= 15 ? 5 : 6; }
+
+  // Every set is timed at the paper's own pace: 60 minutes for 135 marks.
+  function minutesFor(items) {
+    var marks = items.reduce(function (t, i) { return t + marksFor(i.q.n); }, 0);
+    return Math.max(1, Math.round(marks * PAPER_MINUTES / PAPER_MARKS));
+  }
 
   function years() {
     return Object.keys(data.papers).sort(function (a, b) { return b - a; });
@@ -77,9 +92,7 @@
 
   function allQuestions() {
     var out = [];
-    years().forEach(function (y) {
-      out = out.concat(questionsIn(y, SEGMENTS.all));
-    });
+    years().forEach(function (y) { out = out.concat(questionsIn(y, SEGMENTS.all)); });
     return out;
   }
 
@@ -95,6 +108,22 @@
       var t = list[i]; list[i] = list[j]; list[j] = t;
     }
     return list;
+  }
+
+  function fmtDuration(secs) {
+    var m = Math.floor(secs / 60), s = Math.round(secs % 60);
+    return m + 'm ' + (s < 10 ? '0' : '') + s + 's';
+  }
+
+  function fmtDate(ms) {
+    var d = new Date(ms);
+    var opts = { day: 'numeric', month: 'short' };
+    if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+    return d.toLocaleDateString(undefined, opts);
+  }
+
+  function fmtResult(r) {
+    return r.marks + '/' + r.possible + ' marks · ' + fmtDuration(r.secs) + ' · ' + fmtDate(r.at);
   }
 
   function toast(msg) {
@@ -134,7 +163,7 @@
     app.querySelector('[data-stat="answered"]').textContent = seen;
     app.querySelector('[data-stat="accuracy"]').textContent =
       seen ? Math.round(right / seen * 100) + '%' : '–';
-    app.querySelector('[data-stat="streak"]').textContent = progress.best || 0;
+    app.querySelector('[data-stat="streak"]').textContent = progress.best;
 
     var weak = wrongPool();
     var weakBtn = app.querySelector('[data-mode="weak"]');
@@ -154,7 +183,7 @@
 
     app.querySelector('#reset').addEventListener('click', function () {
       if (!confirm('Erase all recorded answers on this device?')) return;
-      progress = { attempts: {}, streak: 0, best: 0 };
+      progress = { attempts: {}, results: {}, streak: 0, best: 0 };
       save();
       showHome();
     });
@@ -170,22 +199,16 @@
     head.innerHTML = '<b>' + paper.year + '</b><span class="done">' + total + '/25 answered</span>';
     li.appendChild(head);
 
-    ['first', 'last'].forEach(function (name) {
-      var seg = SEGMENTS[name];
-      var done = answeredIn(paper.year, seg);
-      var row = document.createElement('div');
-      row.className = 'seg';
-      row.innerHTML =
-        '<span class="seg-label">' + seg.label + '<small>' + seg.range + '</small></span>' +
-        '<span class="bar"><i style="width:' + (done / seg.count * 100) + '%"></i></span>' +
-        '<span class="seg-count">' + done + '/' + seg.count + '</span>';
+    var mockResult = progress.results[resultKey(paper.year, SEGMENTS.all)];
+    if (mockResult) {
+      var m = document.createElement('p');
+      m.className = 'seg-result whole';
+      m.textContent = 'Full paper: ' + fmtResult(mockResult);
+      li.appendChild(m);
+    }
 
-      var go = document.createElement('button');
-      go.className = 'go';
-      go.textContent = done === 0 ? 'Start' : done < seg.count ? 'Continue' : 'Redo';
-      go.addEventListener('click', function () { startPaper(paper.year, seg, false); });
-      row.appendChild(go);
-      li.appendChild(row);
+    ['first', 'last'].forEach(function (name) {
+      li.appendChild(segmentBlock(paper.year, SEGMENTS[name]));
     });
 
     var acts = document.createElement('div');
@@ -194,7 +217,7 @@
     var mock = document.createElement('button');
     mock.textContent = 'Timed mock';
     mock.addEventListener('click', function () {
-      if (confirm('Start the whole ' + paper.year + ' paper as a timed 60-minute mock?'))
+      if (confirm('Sit the whole ' + paper.year + ' paper against a 60-minute clock?'))
         startPaper(paper.year, SEGMENTS.all, true);
     });
     acts.appendChild(mock);
@@ -209,9 +232,9 @@
     var reset = document.createElement('button');
     reset.className = 'danger';
     reset.textContent = 'Reset';
-    reset.disabled = total === 0;
+    reset.disabled = total === 0 && !mockResult;
     reset.addEventListener('click', function () {
-      if (!confirm('Clear your answers for the ' + paper.year + ' paper?')) return;
+      if (!confirm('Clear your answers and scores for the ' + paper.year + ' paper?')) return;
       forgetYear(paper.year);
       showHome();
     });
@@ -219,6 +242,50 @@
 
     li.appendChild(acts);
     return li;
+  }
+
+  function segmentBlock(year, seg) {
+    var done = answeredIn(year, seg);
+    var mins = minutesFor(questionsIn(year, seg));
+    var result = progress.results[resultKey(year, seg)];
+
+    var box = document.createElement('div');
+    box.className = 'seg';
+    box.innerHTML =
+      '<div class="seg-top">' +
+        '<span class="seg-label">' + seg.label + '</span>' +
+        '<span class="seg-sub">' + seg.range + ' · ' + mins + ' min</span>' +
+        '<span class="seg-count">' + done + '/' + seg.count + '</span>' +
+      '</div>' +
+      '<div class="bar"><i style="width:' + (done / seg.count * 100) + '%"></i></div>';
+
+    var foot = document.createElement('div');
+    foot.className = 'seg-foot';
+
+    var res = document.createElement('p');
+    res.className = 'seg-result' + (result ? '' : ' none');
+    res.textContent = result ? fmtResult(result) : 'Not marked yet';
+    foot.appendChild(res);
+
+    var btns = document.createElement('span');
+    btns.className = 'seg-btns';
+
+    var go = document.createElement('button');
+    go.className = 'go';
+    go.textContent = done === 0 ? 'Start' : done < seg.count ? 'Continue' : 'Redo';
+    go.addEventListener('click', function () { startPaper(year, seg, false); });
+    btns.appendChild(go);
+
+    var rev = document.createElement('button');
+    rev.className = 'rev';
+    rev.textContent = 'Review';
+    rev.disabled = done === 0;
+    rev.addEventListener('click', function () { startReview(year, seg); });
+    btns.appendChild(rev);
+
+    foot.appendChild(btns);
+    box.appendChild(foot);
+    return box;
   }
 
   function precacheAll() {
@@ -295,16 +362,38 @@
       year: year,
       seg: seg,
       items: items,
-      index: start,
-      deadline: mock ? Date.now() + MOCK_MINUTES * 60000 : null
+      index: start
+    });
+  }
+
+  function startReview(year, seg) {
+    var items = questionsIn(year, seg).filter(function (item) {
+      return progress.attempts[key(year, item.q.n)];
+    });
+    if (!items.length) { toast('Nothing answered in that half yet.'); return; }
+    var answers = {};
+    items.forEach(function (item, i) {
+      answers[i] = progress.attempts[key(year, item.q.n)].last;
+    });
+    begin({
+      title: year + ' · ' + seg.range + ' review',
+      mode: 'review',
+      year: year,
+      seg: seg,
+      items: items,
+      answers: answers,
+      marked: true
     });
   }
 
   function begin(cfg) {
     session = cfg;
     session.index = cfg.index || 0;
-    session.answers = {};
-    session.marked = false;
+    session.answers = cfg.answers || {};
+    session.marked = !!cfg.marked;
+    session.startedAt = Date.now();
+    session.deadline = session.marked
+      ? null : session.startedAt + minutesFor(session.items) * 60000;
     backBtn.hidden = false;
     titleEl.textContent = cfg.title;
     if (session.deadline) tick();
@@ -315,12 +404,23 @@
     stopTimer();
     timer = setInterval(function () {
       if (!session || !session.deadline || session.marked) { stopTimer(); return; }
-      var left = session.deadline - Date.now();
-      if (left <= 0) { stopTimer(); mark(); return; }
-      var m = Math.floor(left / 60000), s = Math.floor(left % 60000 / 1000);
-      metaEl.innerHTML = '<span class="' + (left < 300000 ? 'warn' : '') + '">' +
-        m + ':' + (s < 10 ? '0' : '') + s + '</span>';
+      if (session.deadline - Date.now() <= 0) {
+        stopTimer();
+        toast('Time is up — marked as it stands.');
+        mark();
+        return;
+      }
+      updateMeta();
     }, 250);
+  }
+
+  function updateMeta() {
+    var pos = (session.index + 1) + '/' + session.items.length;
+    if (!session.deadline || session.marked) { metaEl.textContent = pos; return; }
+    var left = Math.max(0, session.deadline - Date.now());
+    var m = Math.floor(left / 60000), s = Math.floor(left % 60000 / 1000);
+    metaEl.innerHTML = pos + '<span class="clock' + (left < 300000 ? ' warn' : '') + '">' +
+      m + ':' + (s < 10 ? '0' : '') + s + '</span>';
   }
 
   function answeredCount() {
@@ -334,9 +434,7 @@
     if (!item) { showHome(); return; }
     view('tpl-quiz');
 
-    if (!session.deadline || session.marked) {
-      metaEl.textContent = (session.index + 1) + '/' + session.items.length;
-    }
+    updateMeta();
     app.querySelector('.progressbar i').style.width =
       ((session.index + 1) / session.items.length * 100) + '%';
 
@@ -378,7 +476,7 @@
     var markBtn = app.querySelector('[data-act="mark"]');
     var solBtn = app.querySelector('[data-act="solution"]');
     if (session.marked) {
-      markBtn.textContent = 'Back to results';
+      markBtn.textContent = session.mode === 'review' ? 'Score summary' : 'Back to results';
       markBtn.addEventListener('click', showResults);
       solBtn.hidden = false;
       if (!item.q.s) solBtn.textContent = 'Open solutions PDF';
@@ -478,19 +576,23 @@
   function mark() {
     stopTimer();
     session.marked = true;
+    session.takenSecs = Math.round((Date.now() - session.startedAt) / 1000);
     session.items.forEach(function (item, i) {
       var picked = session.answers[i];
       if (picked) record(item.year, item.q.n, picked, picked === item.q.answer);
     });
+    var tally = score();
+    if (session.year && session.seg) {
+      progress.results[resultKey(session.year, session.seg)] = {
+        marks: tally.marks, possible: tally.possible, right: tally.right,
+        count: session.items.length, secs: session.takenSecs, at: Date.now()
+      };
+    }
     save();
     showResults();
   }
 
-  function showResults() {
-    stopTimer();
-    metaEl.textContent = '';
-    titleEl.textContent = 'Results';
-
+  function score() {
     var marks = 0, possible = 0, right = 0, answered = 0;
     session.items.forEach(function (item, i) {
       var picked = session.answers[i];
@@ -498,13 +600,29 @@
       if (picked) answered++;
       if (picked === item.q.answer) { marks += marksFor(item.q.n); right++; }
     });
+    return { marks: marks, possible: possible, right: right, answered: answered };
+  }
+
+  function showResults() {
+    stopTimer();
+    metaEl.textContent = '';
+    titleEl.textContent = 'Results';
+
+    var tally = score();
+    var stored = session.year && session.seg
+      ? progress.results[resultKey(session.year, session.seg)] : null;
+    var secs = session.takenSecs != null ? session.takenSecs : (stored ? stored.secs : null);
+    var when = session.takenSecs != null ? Date.now() : (stored ? stored.at : null);
 
     view('tpl-results');
-    app.querySelector('[data-res="marks"]').textContent = marks;
-    app.querySelector('[data-res="outof"]').textContent = ' / ' + possible + ' marks';
+    app.querySelector('[data-res="marks"]').textContent = tally.marks;
+    app.querySelector('[data-res="outof"]').textContent = ' / ' + tally.possible + ' marks';
     app.querySelector('[data-res="line"]').textContent =
-      right + ' of ' + session.items.length + ' correct' +
-      (answered < session.items.length ? ' · ' + (session.items.length - answered) + ' left blank' : '');
+      tally.right + ' of ' + session.items.length + ' correct' +
+      (tally.answered < session.items.length
+        ? ' · ' + (session.items.length - tally.answered) + ' left blank' : '');
+    app.querySelector('[data-res="when"]').textContent = secs == null ? ''
+      : 'Took ' + fmtDuration(secs) + ' · ' + fmtDate(when);
 
     var grid = app.querySelector('[data-res="grid"]');
     session.items.forEach(function (item, i) {
@@ -521,11 +639,10 @@
 
     app.querySelector('[data-act="review"]').addEventListener('click', function () { goTo(0); });
     var again = app.querySelector('[data-act="again"]');
-    again.textContent = session.mode === 'paper' || session.mode === 'mock'
-      ? 'Back to papers' : 'Try another set';
+    var mix = session.mode === 'mix' || session.mode === 'hard' || session.mode === 'weak';
+    again.textContent = mix ? 'Try another set' : 'Back to papers';
     again.addEventListener('click', function () {
-      if (session.mode === 'paper' || session.mode === 'mock') showHome();
-      else startMode(session.mode);
+      if (mix) startMode(session.mode); else showHome();
     });
     app.querySelector('[data-act="home"]').addEventListener('click', showHome);
   }

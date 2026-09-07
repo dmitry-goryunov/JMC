@@ -20,16 +20,21 @@ on a laptop, or on an interactive whiteboard.
 
 ## What it does
 
+Every set is on the clock, at the paper's own pace — the real 60 minutes for 135 marks,
+pro rata. A full paper gets 60 minutes, the first 15 questions get 33, the last 10 get 27.
+When time runs out the set is marked as it stands.
+
 Nothing is marked while you answer. You work through a set, changing answers and jumping
 about as you like, then tap **Mark** and the whole chunk is graded at once — the way a real
-paper works. Only then do the verdicts and worked solutions appear.
+paper works. Only then do the verdicts and worked solutions appear. Marks follow the current
+scheme: 5 for each of Q1–15, 6 for each of Q16–25, no penalty for a wrong answer.
 
 - **Past papers** — each paper splits into **First 15** (Q1–15) and **Last 10** (Q16–25),
-  each with its own progress, so the harder half can be drilled on its own. Each year also
-  has its own **Reset**.
-- **Timed mock** — the full 25-question paper against a 60-minute clock, marked when the
-  time runs out or when you tap Mark, under the current scheme (5 marks for Q1–15, 6 for
-  Q16–25, no penalty for a wrong answer).
+  each timed, marked and tracked on its own, so the harder half can be drilled separately.
+  Once a half has been marked its card shows the score, how long it took and the date;
+  **Review** walks back through it with the worked solutions, untimed. Each year has its
+  own **Reset**.
+- **Timed mock** — the full 25-question paper against the full 60-minute clock.
 - **Quick mix** — 10 random questions from any year.
 - **Hard mix** — 10 random questions drawn only from Q16–25.
 - **Practise mistakes** — replays the questions you have previously got wrong.
